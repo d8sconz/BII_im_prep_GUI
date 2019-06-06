@@ -13,7 +13,7 @@ from collections import Counter
 
 import aiohttp
 import cv2 as cv
-import matplotlib.image as mpimg
+
 # Matplotlib chosen for image render because it works.
 # Need to return to this and try wxStaticBitmap again with wx.GetApp().Yield()
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ import numpy as np
 import praw
 import wx
 import wx.lib.agw.aui as aui
-import wx.lib.mixins.inspection as wit
+#import wx.lib.mixins.inspection as wit
 
 import matplotlib as mpl
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
