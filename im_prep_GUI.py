@@ -127,7 +127,8 @@ class TopLeft_explorer(wx.Panel):
         self.canvas.mpl_connect('button_release_event', self._onRelease)
         self.canvas.mpl_connect('motion_notify_event', self._onMotion)
         
-        # Lock to stop the motion event from behaving badly when the mouse isn't pressed
+        # Lock to stop the motion event from behaving badly 
+        # when the mouse isn't pressed
         self.pressed = False
 
         # If there is an initial image, display it on the figure
@@ -141,7 +142,8 @@ class TopLeft_explorer(wx.Panel):
         # Check the mouse press was actually on the canvas
         if event.xdata is not None and event.ydata is not None:
 
-            # Upon initial press of the mouse record the origin and record the mouse as pressed
+            # Upon initial press of the mouse record the origin
+            # and record the mouse as pressed
             self.pressed = True
             self.rect.set_linestyle('dashed')
             self.x0 = event.xdata
@@ -151,7 +153,8 @@ class TopLeft_explorer(wx.Panel):
     def _onRelease(self, event):
         '''Callback to handle the mouse being released over the canvas'''
 
-        # Check that the mouse was actually pressed on the canvas to begin with and this isn't a rouge mouse 
+        # Check that the mouse was actually pressed on the canvas
+        # to begin with and this isn't a rogue mouse 
         # release event that started somewhere else
         if self.pressed:
 
