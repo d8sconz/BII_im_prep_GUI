@@ -63,7 +63,7 @@ class TopLeft_spider(wx.Panel):
         #load image
         im_pth = all_cats + '/new_cats/av_cat'
         files = os.listdir(im_pth)
-        im_pths =  [os.path.join(im_pth, im_name) for im_name in files]
+        im_pths = [os.path.join(im_pth, im_name) for im_name in files]
         img = max(im_pths, key=os.path.getctime)
 
         self.figure = Figure()
@@ -213,8 +213,6 @@ class TopLeft_explorer(wx.Panel):
         self.axes.imshow(image,aspect='equal') 
         self.canvas.draw()
 
-
-
 # ---------------class for panel containing terminal output-----------
 class TopRight(wx.Panel):
     def __init__(self, parent):
@@ -237,7 +235,7 @@ class BottomPanel(wx.Panel):
         self.btn3 = wx.Button(self.panel, label='Good Cat!', id=2, pos =(400,110))
         self.btn1.SetDefault()
         self.btn1.SetFocus()
-        
+       
         self.btdt = []   # list of already visited sites (Been There Done That)
         self.r = praw.Reddit('bot1')    # Initialises reddit bot to download cat images
 
@@ -253,7 +251,7 @@ class BottomPanel(wx.Panel):
             size=(320,-1), 
             style=wx.SL_HORIZONTAL|wx.SL_LABELS
             )
-        
+
         self.progress = wx.Gauge(
             self.panel, 
             -1, 
@@ -293,7 +291,7 @@ class BottomPanel(wx.Panel):
             return 2
         elif focused == self.btn2:
             return 1
-    
+
     def spider(self):
         def get_pic(href):
             parts = 8  # number of parts for asyncio download
@@ -314,7 +312,7 @@ class BottomPanel(wx.Panel):
             except OSError:
                 print("Damaged file rejected")
             return
-        
+
         async def download(url, parts):
             async def get_partial_content(u, i, start, end):
                 async with aiohttp.ClientSession() as sess:
@@ -364,16 +362,18 @@ class BottomPanel(wx.Panel):
         # Remove temp file
         
         return
-    
+
     ##################    Image processing functions:   #######################
     ################## takes raw images from spider and ####################### 
     ##################      finds,  resizes, crops,     #######################
     ##################      posterises and saves        #######################
-    
-    def find_cats(self,img_pth):     #Takes name of temp file from spider
+
+    def find_cats(self, img_pth):     #Takes name of temp file from spider
         # Open and view raw downloaded image
         image = cv.imread(img_pth, cv.COLOR_RGB2BGR)
         self.show_im(img_pth, image)
+        wx.GetApp().Yield()
+        time.sleep(3)
         # Standardise color, convert to grayscale and normalise...
         # the range 0 - 255 and view each step
         if image.shape[2]:
@@ -396,10 +396,10 @@ class BottomPanel(wx.Panel):
         left, right = delta_w//2, delta_w-(delta_w//2)
 
         color = [0, 0, 0]
-        image = cv.copyMakeBorder(image, top, bottom, left, right, cv.BORDER_CONSTANT,
-            value=color)
+        image = cv.copyMakeBorder(image, top, bottom, left, right, 
+                                  cv.BORDER_CONSTANT, value=color)
 
-        rows,cols = image.shape
+        rows, cols = image.shape
         #faces = cat_face3.detectMultiScale(image, 1.05, 5)
         #eyes = cat_face2.detectMultiScale(image, 1.035, 5)
         faces = cat_face1.detectMultiScale(image, 1.04, 3, minSize=(128,128))
@@ -471,10 +471,10 @@ class BottomPanel(wx.Panel):
                 image = generate.img(i)
                 self.show_im('tmp_img.png', image)
             av_im, post_im = generate.av_img()
-            image = cv.imread(av_im,0)
+            image = cv.imread(av_im, 0)
             self.show_im(av_im, image)
             time.sleep(.5)
-            image = cv.imread(post_im,0)
+            image = cv.imread(post_im, 0)
             self.show_im(post_im, image)
             image = generate.max_rndm_img()
             self.show_im('tmp_img.png', image)
@@ -496,8 +496,8 @@ class BottomPanel(wx.Panel):
                 if hsize < img_y:
                     hsize = img_y
                 # 3) resize image to new dimensions (resize expects w,h)
-                im = cv.resize(im, (img_x, hsize),
-                                interpolation=cv.INTER_CUBIC)
+                im = cv.resize(im, (img_x, hsize), 
+                    interpolation=cv.INTER_CUBIC)
                 # 4) crop image centered on height (target width, img_x, is datum)
                 #    cropped image=image[y:y+h,x:x+w]
                 im = im[round(hsize/2-img_y/2):round(hsize/2+img_y/2), 0:img_x]
@@ -719,19 +719,6 @@ class explorer_panel(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(topSplitter, 1, wx.EXPAND)
         self.SetSizer(sizer)
-
-class PlotNotebook(wx.Panel):
-    def __init__(self, parent, id=-1):
-        wx.Panel.__init__(self, parent, id=id)
-        self.nb = aui.AuiNotebook(self)
-        sizer = wx.BoxSizer()
-        sizer.Add(self.nb, 1, wx.EXPAND)
-        self.SetSizer(sizer)
-
-    def add(self, name):
-        page = self.TopPanel(self.nb)
-        self.nb.AddPage(page, name)
-        return page.figure
 
 class Main(wx.Frame):
     def __init__(self):
