@@ -34,12 +34,15 @@ import generate
 # ------------------file variables-------------------
 # Base path
 pth = os.path.dirname(os.path.abspath('__file__'))
+# folder for gui graphics
+gui_graphics = pth + '/gui_graphics'
 # temp file for initial image handling
 img_pth = os.path.join(pth, "tmp_img.png")
 # Folders, subfolders for processed images
-all_cats = os.getcwd() + '/Cats'
+all_cats = pth + '/Cats'
 raw_cats = all_cats + '/raw_cats'
 dead_cats = all_cats + '/dead_cats'
+new_cats = all_cats + '/new_cats'
 # Classifier files for face recognition
 cascades1 = all_cats + '/cascades/haarcascade_frontalcatface.xml'
 cascades2 = all_cats + '/cascades/haarcascade_frontalcatface_extended.xml'
@@ -61,7 +64,7 @@ class TopLeft_spider(wx.Panel):
     def __init__(self, parent):
         super(TopLeft_spider, self).__init__(parent)
         #load image
-        im_pth = all_cats + '/new_cats/av_cat'
+        im_pth = new_cats + '/av_cat'
         files = os.listdir(im_pth)
         im_pths = [os.path.join(im_pth, im_name) for im_name in files]
         img = max(im_pths, key=os.path.getctime)
@@ -92,7 +95,7 @@ class TopLeft_explorer(wx.Panel):
     def __init__(self, parent):
         super(TopLeft_explorer, self).__init__(parent)
         #load image
-        im_pth = all_cats + '/new_cats/av_cat'
+        im_pth = new_cats + '/av_cat'
         files = os.listdir(im_pth)
         im_pths =  [os.path.join(im_pth, im_name) for im_name in files]
         img_pth = max(im_pths, key=os.path.getctime)
@@ -115,18 +118,18 @@ class TopLeft_explorer(wx.Panel):
         self.x1 = None
         self.y1 = None
         self.axes.add_patch(self.rect)
-        
+
         # Sizer to contain the canvas
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 3, wx.ALL)
         self.SetSizer(self.sizer)
         self.Fit()
-        
+
         # Connect the mouse events to their relevant callbacks
         self.canvas.mpl_connect('button_press_event', self._onPress)
         self.canvas.mpl_connect('button_release_event', self._onRelease)
         self.canvas.mpl_connect('motion_notify_event', self._onMotion)
-        
+
         # Lock to stop the motion event from behaving badly 
         # when the mouse isn't pressed
         self.pressed = False
@@ -217,7 +220,10 @@ class TopLeft_explorer(wx.Panel):
 class TopRight(wx.Panel):
     def __init__(self, parent):
         super(TopRight, self).__init__(parent)
-        self.term = wx.TextCtrl(self, size = (200,100),style = wx.TE_MULTILINE|wx.TE_READONLY|wx.TE_RICH)
+        self.term = wx.TextCtrl(self,
+                                size=(200, 100),
+                                style=wx.TE_MULTILINE|wx.TE_READONLY|wx.TE_RICH
+                                )
         self.term.SetDefaultStyle(wx.TextAttr(wx.GREEN))
         self.term.SetBackgroundColour(wx.BLACK)     
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -228,68 +234,87 @@ class TopRight(wx.Panel):
 # -----------------Panel for all controls------------------------- 
 class BottomPanel(wx.Panel):
     def __init__(self, parent, image_panel, terminal_panel):
-        wx.Panel.__init__(self, parent = parent)
-        self.panel = wx.Panel(self, -1, size=(580,180))
-        self.btn1 = wx.Button(self.panel, label='Go!', id=1, pos =(400,30))
-        self.btn2 = wx.Button(self.panel, label='Crap Cat!', id=2, pos =(400,70))
-        self.btn3 = wx.Button(self.panel, label='Good Cat!', id=2, pos =(400,110))
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
-       
-        self.btdt = []   # list of already visited sites (Been There Done That)
+        wx.Panel.__init__(self, parent=parent)
+        self.panel = wx.Panel(self, -1, size=(580, 180))
+        self.btn_Go = wx.Button(self.panel, id=1, pos=(385, 30), size=(35, 35))
+        self.btn_Go.SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
+        self.btn_reject = wx.Button(self.panel, id=2, pos=(430, 30), size=(35, 35))
+        self.btn_reject.SetBitmap(wx.Bitmap(gui_graphics + '/dislike.png'))
+        self.btn_accept = wx.Button(self.panel, id=2, pos=(475, 30), size=(35, 35))
+        self.btn_accept.SetBitmap(wx.Bitmap(gui_graphics + '/like.png'))
+        self.btn_Go.SetDefault()
+        self.btn_Go.SetFocus()
+
         self.r = praw.Reddit('bot1')    # Initialises reddit bot to download cat images
 
         self.cat_panel = image_panel
         self.term_panel = terminal_panel
 
+        # setting up/loading list of downloaded/rejected images
+        self.btdt = []
+        try:
+            with open('btdt.pkl', 'rb') as f:
+                self.btdt = pickle.load(f)
+        except:
+            self.term_msg("No btdt file, creating new")
+            # Collect btdt from any existing files to prevent re-download
+            files = os.listdir(raw_cats)
+            for f in files:
+                self.btdt.append(f[:6])
+            self.btdt = list(dict.fromkeys(self.btdt))
+            with open('btdt.pkl', 'wb') as f:
+                pickle.dump(self.btdt, f)
+        print(self.btdt)
+
         self.cat_sld = wx.Slider(
-            self.panel, 
-            value = 1, 
-            minValue = 1, 
-            maxValue = 200, 
-            pos=(15,20), 
-            size=(320,-1), 
+            self.panel,
+            value=1,
+            minValue=1,
+            maxValue=200,
+            pos=(15, 20),
+            size=(320, -1),
             style=wx.SL_HORIZONTAL|wx.SL_LABELS
             )
 
         self.progress = wx.Gauge(
-            self.panel, 
-            -1, 
-            100, 
-            pos=(20,100),
-            size=(315,-1), 
+            self.panel,
+            -1,
+            100,
+            pos=(20, 100),
+            size=(315, -1),
             style=wx.GA_HORIZONTAL|wx.GA_SMOOTH
             )
 
-        self.progress.SetValue( 0 )
+        self.progress.SetValue(0)
         self.progress.SetRange(self.cat_sld.GetValue())
-        self.progress.SetForegroundColour( wx.Colour( 255, 255, 255 ) )
+        self.progress.SetForegroundColour(wx.Colour(255, 255, 255))
 
-        self.btn1.Bind(wx.EVT_BUTTON, self.button1_press)
-        self.btn2.Bind(wx.EVT_BUTTON, self.button2_press)
-        self.btn3.Bind(wx.EVT_BUTTON, self.button3_press)
+        self.btn_Go.Bind(wx.EVT_BUTTON, self.btn_Go_press)
+        self.btn_reject.Bind(wx.EVT_BUTTON, self.btn_reject_press)
+        self.btn_accept.Bind(wx.EVT_BUTTON, self.btn_accept_press)
 
-    def button1_press(self, event):
+    def btn_Go_press(self, event):
         self.reject_cat = 0
         self.good_cat = 0
         self.get_cats()
 
-    def button2_press(self, event):
+    def btn_reject_press(self, event):
         self.good_cat = 0
         self.reject_cat = 1
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
+        #self.btn_Go.SetDefault()
+        self.btn_reject.SetFocus()
 
-    def button3_press(self, event):
+    def btn_accept_press(self, event):
         self.reject_cat = 0
         self.good_cat = 1
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
+        #self.btn_Go.SetDefault()
+        self.btn_accept.SetFocus()
+
     def get_focus(self):
         focused = wx.Window.FindFocus()
-        if focused == self.btn1:
+        if focused == self.btn_Go:
             return 2
-        elif focused == self.btn2:
+        elif focused == self.btn_reject:
             return 1
 
     def spider(self):
@@ -331,26 +356,24 @@ class BottomPanel(wx.Panel):
             ranges = list(range(0, size, size // parts))
 
             res, _ = await asyncio.wait([get_partial_content(url, i, start, end)
-                                        for i, (start, end)
-                                        in enumerate(itertools.zip_longest
-                                                    (ranges, ranges[1:],
-                                                    fillvalue=""))])
+                                         for i, (start, end)
+                                         in enumerate(itertools.zip_longest(
+                                             ranges, ranges[1:],
+                                             fillvalue=""))])
             sorted_result = sorted(task.result() for task in res)
             return b"".join(data for _, data in sorted_result)
 
         #pic = 1
-        # Collect btdt from any existing files to prevent re-download
-        files = os.listdir(raw_cats)
-        for f in files:
-            self.btdt.append(f[:6])
-        self.btdt = list(dict.fromkeys(self.btdt))
-        
+
         for submission in self.r.subreddit('cats').new(limit=None):
             href = submission.url
             user = submission.id
             if (href.endswith(".png") or href.endswith(".jpg")) and user not in self.btdt:
                 # Add user to list to prevent duplicates
                 self.btdt.append(user)
+                with open('btdt.pkl', 'wb') as f:
+                    pickle.dump(self.btdt, f)
+                    print(self.btdt)
                 # Download image
                 get_pic(href)
                 # Find appropriate faces, crop, posterise, save - passes name of temp file
@@ -360,7 +383,7 @@ class BottomPanel(wx.Panel):
                 if pic > 0:
                     break
         # Remove temp file
-        
+
         return
 
     ##################    Image processing functions:   #######################
@@ -372,8 +395,12 @@ class BottomPanel(wx.Panel):
         # Open and view raw downloaded image
         image = cv.imread(img_pth, cv.COLOR_RGB2BGR)
         self.show_im(img_pth, image)
-        wx.GetApp().Yield()
-        time.sleep(3)
+        for _ in range(1000):
+            wx.GetApp().Yield()
+            if self.reject_cat:
+                self.reject_cat = 0 # reset switch for next cat
+                self.term_msg("Crap cat!")
+                return
         # Standardise color, convert to grayscale and normalise...
         # the range 0 - 255 and view each step
         if image.shape[2]:
@@ -408,7 +435,8 @@ class BottomPanel(wx.Panel):
             self.good_cat = 0   #reset switch for next cat
             self.term_panel.term.WriteText("Looking for cats...\n")
             # Rotate image and finer check for cat faces
-            for i in range(0,360,int(360/72)):  # rotate at 5 degree increments
+            inc =  72    #sets increment for rotation of image. eg. 72=5°
+            for i in range(0, 360, int(360/inc)):  # rotate at 5 degree increments
                 # Routine to rotate and display image in search of cats
                 M = cv.getRotationMatrix2D((cols/2,rows/2),i,1)
                 rot_im = cv.warpAffine(image,M,(cols,rows))
@@ -427,20 +455,20 @@ class BottomPanel(wx.Panel):
                         self.show_im(img_pth_crppd, crop_img)
                         self.Skin_cats(img_pth_crppd)
                         self.term_msg(f"Slashed cat no. {pic}\n")
-                
+
                 if self.reject_cat:
                     self.reject_cat = 0 # reset switch for next cat
                     break
                 wx.GetApp().Yield()
 
         else:
-            self.term_msg("No cats!")            
+            self.term_msg("No cats!")
         self.term_msg("___________________________________________")
         return
 
     def get_cats(self):
         pic = self.Cat_count()
-        self.btn1.Disable()
+        self.btn_Go.Disable()
         num = self.cat_sld.GetValue()
         if pic < num:
             self.term_msg("Launching spider...")
@@ -479,7 +507,7 @@ class BottomPanel(wx.Panel):
             image = generate.max_rndm_img()
             self.show_im('tmp_img.png', image)
             os.remove('tmp_img.png')
-        self.btn1.Enable()
+        self.btn_Go.Enable()
 
     def Skin_cats(self,f_out):
         self.term_msg("Skinning cats...")
@@ -502,7 +530,7 @@ class BottomPanel(wx.Panel):
                 #    cropped image=image[y:y+h,x:x+w]
                 im = im[round(hsize/2-img_y/2):round(hsize/2+img_y/2), 0:img_x]
             return im
-    
+
         def posterise(im):
             av = [] # List of im values to calc average darkness
             n = [0, 32, 64, 96, 128, 160, 192, 224, 255]
@@ -515,14 +543,14 @@ class BottomPanel(wx.Panel):
                     im.itemset((y, x), int(n[px_val]))
                     av.append(im.item(y,x))
             return im, av
-        
+
         def adjust_gamma(image, gamma=1.0):
             invGamma = 1.0 / gamma
             table = np.array([((i / 255.0) ** invGamma) * 255
                 for i in np.arange(0, 256)]).astype("uint8")
     
             return cv.LUT(image, table)
-    
+
         # Get image, convert, resize, posterise
         image = cv.imread(f_out,0)
         # Resize image to img_x, img_y dimens
@@ -541,7 +569,7 @@ class BottomPanel(wx.Panel):
         DOI_L = round(round(sum(left)/len(left)/32)*32)
         DOI_R = round(round(sum(right)/len(right)/32)*32)
         self.term_msg(str(DOI_L)+" "+str(DOI_R))
-    
+
         if DOI_L > DOI_R:
             image = cv.flip(image, 1)
             self.show_im(f_out, image)
@@ -562,12 +590,12 @@ class BottomPanel(wx.Panel):
             self.term_msg("OK")
             self.show_im(f_out, image)
         return
-    
+
     def Cat_count(self):
         pic_num = len([f for f in os.listdir(raw_cats) if os.path.isfile(
             os.path.join(raw_cats, f))])
         return pic_num
-    
+
     def show_im(self, f_out, image):
         cv.imwrite(f_out, image)
         self.cat_panel.draw(f_out)
@@ -582,13 +610,13 @@ class BottomPanel(wx.Panel):
         self.term_panel.term.WriteText(msg+"\n")
         wx.GetApp().Yield()
         return
-        
+
     def subreddit_list(self):
         subreddits = list(self.r.user.subreddits())
         subs = [str(subreddit) for subreddit in subreddits]
         subs.sort(key=str.lower)
         return subs
-                
+
     def dataBlocks(self, s_cat):
         wndw_data, data, px = [], [], []
         im = cv.imread(s_cat, 0)
@@ -603,7 +631,7 @@ class BottomPanel(wx.Panel):
         except:
             print("No data file, creating new")
             data += wndw_data
-            
+
         f = open('test_data.pkl', 'wb')
         pickle.dump(data, f)
         f.close()
@@ -615,7 +643,7 @@ class splitter_panel(wx.Panel):
 
         topSplitter = wx.SplitterWindow(self)
         vSplitter = wx.SplitterWindow(topSplitter)
- 
+
         image_panel = TopLeft_spider(vSplitter)
         terminal_panel = TopRight(vSplitter)
         #terminal_panel.SetBackgroundColour(wx.BLACK)
@@ -634,14 +662,14 @@ class splitter_panel(wx.Panel):
 
 class Btm_explorer_Panel(wx.Panel):
     def __init__(self, parent, image_panel, terminal_panel):
-        wx.Panel.__init__(self, parent = parent)
-        self.panel = wx.Panel(self, -1, size=(580,180))
-        self.btn1 = wx.Button(self.panel, label='Go!', id=1, pos =(400,30))
-        self.btn2 = wx.Button(self.panel, label='Crap Cat!', id=2, pos =(400,70))
-        self.btn3 = wx.Button(self.panel, label='Good Cat!', id=2, pos =(400,110))
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
-        
+        wx.Panel.__init__(self, parent=parent)
+        self.panel = wx.Panel(self, -1, size=(580, 180))
+        self.btn_Go = wx.Button(self.panel, label='Go!', id=1, pos =(400, 30))
+        self.btn_reject = wx.Button(self.panel, label='Crap Cat!', id=2, pos =(400, 70))
+        self.btn_accept = wx.Button(self.panel, label='Good Cat!', id=2, pos =(400, 110))
+        self.btn_Go.SetDefault()
+        self.btn_Go.SetFocus()
+
         self.btdt = []   # list of already visited sites (Been There Done That)
         self.r = praw.Reddit('bot1')    # Initialises reddit bot to download cat images
 
@@ -669,33 +697,34 @@ class Btm_explorer_Panel(wx.Panel):
 
         self.progress.SetValue( 0 )
         self.progress.SetRange(self.cat_sld.GetValue())
-        self.progress.SetForegroundColour( wx.Colour( 255, 255, 255 ) )
+        self.progress.SetForegroundColour(wx.Colour(255, 255, 255))
 
-        self.btn1.Bind(wx.EVT_BUTTON, self.button1_press)
-        self.btn2.Bind(wx.EVT_BUTTON, self.button2_press)
-        self.btn3.Bind(wx.EVT_BUTTON, self.button3_press)
+        self.btn_Go.Bind(wx.EVT_BUTTON, self.button1_press)
+        self.btn_reject.Bind(wx.EVT_BUTTON, self.btn_reject_press)
+        self.btn_accept.Bind(wx.EVT_BUTTON, self.btn_accept_press)
 
     def button1_press(self, event):
         self.reject_cat = 0
         self.good_cat = 0
         self.get_cats()
 
-    def button2_press(self, event):
+    def btn_reject_press(self, event):
         self.good_cat = 0
         self.reject_cat = 1
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
+        self.btn_Go.SetDefault()
+        self.btn_Go.SetFocus()
 
-    def button3_press(self, event):
+    def btn_accept_press(self, event):
         self.reject_cat = 0
         self.good_cat = 1
-        self.btn1.SetDefault()
-        self.btn1.SetFocus()
+        self.btn_Go.SetDefault()
+        self.btn_Go.SetFocus()
+
     def get_focus(self):
         focused = wx.Window.FindFocus()
-        if focused == self.btn1:
+        if focused == self.btn_Go:
             return 2
-        elif focused == self.btn2:
+        elif focused == self.btn_reject:
             return 1
     
 class explorer_panel(wx.Panel):
@@ -728,7 +757,7 @@ class Main(wx.Frame):
             title = "Borges Infinite Image", 
             size = (600,550)
             )
-        self.SetIcon(wx.Icon("Abe.png"))
+        self.SetIcon(wx.Icon(gui_graphics + '/Abe.png'))
 
         panel = wx.Panel(self)
         notebook = aui.AuiNotebook(panel)
