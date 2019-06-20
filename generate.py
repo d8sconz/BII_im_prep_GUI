@@ -17,7 +17,7 @@ f.close()
 
 n = [0, 32, 64, 96, 128, 160, 192, 224, 255]
 img_x, img_y = 64,64            # divisible x 3
-MainIm = np.zeros((img_x, img_y), np.uint8)
+#MainIm = np.zeros((img_x, img_y), np.uint8)
 
 def show_img(nm):
     image = cv.imread('tmp_img.png', 0)
@@ -27,14 +27,14 @@ def show_img(nm):
     cv.waitKey(1000)
     cv.destroyAllWindows()
 
-def save_img(nm):
-    im = cv.imread('tmp_img.png')
+def save_img(nm, im):
+    #im = cv.imread('tmp_img.png')
     p = Path(os.path.join(new_cats,nm))
     if not os.path.exists(p.parent):
         os.mkdir(p.parent)
     img = f"{p} {dt.now():%d-%m-%Y %H:%M}.png"
     cv.imwrite(img, im)
-    return img
+    return
 
 def pix_val(x,y,num):
     pixdata = Counter(cnt_list[x+img_x*y])
@@ -42,7 +42,7 @@ def pix_val(x,y,num):
     return pix[num][0]
 
 def av_img():
-    MainIm = np.zeros((img_x, img_y), np.uint8)
+    av_cat = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
         for x in range(img_x):
             pixdata = dict(Counter(cnt_list[x+img_x*y]))
@@ -57,8 +57,9 @@ def av_img():
     cv.imwrite('tmp_img.png', MainIm)
     nm = 'Normalised average cat'
     #show_img(nm)
-    av_cat = save_img(f"av_cat/new_cat_av")
+    save_img(f"av_cat/new_cat_av", av_cat)
 
+    post_cat = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
         for x in range(img_x):
             pxl = MainIm.item(y, x)
@@ -68,7 +69,7 @@ def av_img():
     cv.imwrite('tmp_img.png', MainIm)
     nm = 'Normalised average cat, posterised'
     #show_img(nm)
-    post_cat = save_img(f"av_cat_post/new_cat_av_post")
+    save_img(f"av_cat_post/new_cat_av_post", post_cat)
     return av_cat, post_cat
 
 def max_rndm_img():      #Image composed of most common (random) pixel val
@@ -82,7 +83,7 @@ def max_rndm_img():      #Image composed of most common (random) pixel val
                 for _ in range(value):
                     pix_vals.append(key)
             rndm = random.choice(pix_vals)
-            MainIm.itemset((y,x),rndm)
+            MainIm.itemset((y, x), rndm)
     cv.imwrite('tmp_img.png', MainIm)
     nm = 'Weighted random max cat'
     #show_img(nm)
@@ -98,7 +99,7 @@ def img(i):      #Images composed of all pixel values
     cv.imwrite('tmp_img.png', MainIm)
     nm = f"img_{i}"
     #show_img(nm)
-    im = save_img(f"{nm}/{nm}")
+    im = save_img(f"{nm}/{nm}", MainIm)
     return MainIm
 
 def main():
