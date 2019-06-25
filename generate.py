@@ -51,10 +51,10 @@ def av_img():
                 tot += (key*pixdata[key])
                 num += pixdata[key]
             av = tot/num
-            MainIm.itemset((y,x),av)
+            av_cat.itemset((y,x),av)
     normalizedImg = np.zeros((img_y, img_x))
-    MainIm = cv.normalize(MainIm,  normalizedImg, 0, 255, cv.NORM_MINMAX)
-    cv.imwrite('tmp_img.png', MainIm)
+    av_cat = cv.normalize(av_cat,  normalizedImg, 0, 255, cv.NORM_MINMAX)
+    cv.imwrite('tmp_img.png', av_cat)
     nm = 'Normalised average cat'
     #show_img(nm)
     save_img(f"av_cat/new_cat_av", av_cat)
@@ -62,17 +62,18 @@ def av_img():
     post_cat = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
         for x in range(img_x):
-            pxl = MainIm.item(y, x)
+            pxl = av_cat.item(y, x)
             px_val = bisect.bisect(n, pxl)
             # Convert to 12 gray values
-            MainIm.itemset((y, x), int(n[px_val-1]))
-    cv.imwrite('tmp_img.png', MainIm)
+            post_cat.itemset((y, x), int(n[px_val-1]))
+    cv.imwrite('tmp_img.png', post_cat)
     nm = 'Normalised average cat, posterised'
     #show_img(nm)
     save_img(f"av_cat_post/new_cat_av_post", post_cat)
     return av_cat, post_cat
 
 def max_rndm_img():      #Image composed of most common (random) pixel val
+    MainIm = np.zeros((img_x, img_y), np.uint8)
     pix = []
     for y in range(img_y):
         for x in range(img_x):
@@ -93,6 +94,7 @@ def max_rndm_img():      #Image composed of most common (random) pixel val
     return MainIm
 
 def img(i):      #Images composed of all pixel values
+    MainIm = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
         for x in range(img_x):
             MainIm.itemset((y,x),pix_val(x,y,i))
