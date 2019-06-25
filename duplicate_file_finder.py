@@ -14,6 +14,8 @@ raw_cats = all_cats + '/raw_cats'
 dead_cats = all_cats + '/dead_cats'
 temp_cats = all_cats + '/temp_cats'     #For testing
 
+current_dir = dead_cats
+
 
  
 import hashlib, os, optparse, sys
@@ -33,7 +35,7 @@ def rm_dup():
     md5_dict={}
     print('Working...')
     print()
-    for root, _, files in os.walk(dead_cats):#the os.walk function allows checking subdirectories too...
+    for root, _, files in os.walk(current_dir):#the os.walk function allows checking subdirectories too...
         for f in files:
             filePath=os.path.join(root,f)
             md5Hash=md5(filePath)
