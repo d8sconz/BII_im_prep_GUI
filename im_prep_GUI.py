@@ -24,6 +24,7 @@ import numpy as np
 import praw
 import wx
 import wx.lib.agw.aui as aui
+import wx.lib.agw.floatspin as floatspin
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 #from matplotlib.backends.backend_wxagg import \
 #    NavigationToolbar2WxAgg as NavigationToolbar
@@ -61,6 +62,7 @@ cat_face3 = cv.CascadeClassifier(cascades3)
 min_img_wndw = 295      # min href = submission.urlsize of top panels
 img_y, img_x = 64, 64   # raw href = submission.urlcat size
 im_resize_init = 1280   # Inithref = submission.urlial resize dimension of downloaded images
+
 #href = submission.url
 #Ghost of programs past - for href = submission.urluse with wx.staticBitmap if I return to it
 MainIm = np.zeros((img_x, img_y), np.uint8)
@@ -74,27 +76,24 @@ class TopLeft_spider(wx.Panel):
         files = os.listdir(im_pth)
         im_pths = [os.path.join(im_pth, im_name) for im_name in files]
         img = max(im_pths, key=os.path.getctime)
+        opening_image = cv.imread(img)
 
         self.figure = Figure()
         self.axes = self.figure.add_axes([0, 0, 1, 1])
         self.axes.axis('off')
         self.canvas = FigureCanvas(self, -1, self.figure)
-        self.draw(img)
+        self.draw(opening_image)
 
-    def draw(self, im_pth):
+    def draw(self, image):
         self.figure.clf()
-        #self.figure = Figure(frameon=False)
         self.axes = self.figure.add_axes([0, 0, 1, 1])
         self.axes.axis('off')
-        #self.canvas = FigureCanvas(self, -1, self.figure)
-
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.EXPAND)
         self.sizer.SetDimension ( 0, 0, min_img_wndw, min_img_wndw)
         self.SetSizer(self.sizer)
-
-        img = cv.imread(im_pth)
-        self.axes.imshow(img) #.set_array(img)
+        #img = cv.imread(im_pth)
+        self.axes.imshow(image, cmap='gray', vmin=0, vmax=255) #.set_array(image)
         self.canvas.draw()
 
 class TopLeft_explorer(wx.Panel):
@@ -242,23 +241,80 @@ class BottomPanel(wx.Panel):
         self.panel = wx.Panel(self, -1, size=(580, 180))
         self.cat_panel = image_panel
         self.term_panel = terminal_panel
+        self.btn_go_toggle = 1
+        self.image_store = []        # holds last image_num images for review
+        self.image_num = 10          # number of images to hold for review
+        self.inc = 0                 # holds index number of image_store for back/fwd buttons
+        self.review = 0
+        self.good_cat = 0
+        self.haar_scale = 1.08
+        self.haar_neig = 5
 
         # Buttons, sliders and gauge, setup and initialise
-        self.btn_Go = wx.ToggleButton(self.panel, id=-1, pos=(385, 30), size=(35, 35))
-        self.btn_Go.SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
-        self.btn_Go.Bind(wx.EVT_TOGGLEBUTTON, self.btn_Go_press)
+        self.btn_go = wx.Button(self.panel, id=-1, pos=(435, 30), size=(35, 35))
+        self.btn_go.SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
+        self.btn_go.Bind(wx.EVT_BUTTON, self.btn_go_press)
+        self.btn_go.ToolTip = wx.ToolTip("Start the spider or data dump")
 
-        self.btn_reject = wx.Button(self.panel, id=-1, pos=(430, 30), size=(35, 35))
+        self.btn_reject = wx.Button(self.panel, id=-1, pos=(435, 75), size=(35, 35))
         self.btn_reject.SetBitmap(wx.Bitmap(gui_graphics + '/dislike.png'))
         self.btn_reject.Bind(wx.EVT_BUTTON, self.btn_reject_press)
+        self.btn_reject.ToolTip = wx.ToolTip("Crap cat! Go to next")
 
-        self.btn_accept = wx.Button(self.panel, id=-1, pos=(475, 30), size=(35, 35))
+        self.btn_accept = wx.Button(self.panel, id=-1, pos=(480, 75), size=(35, 35))
         self.btn_accept.SetBitmap(wx.Bitmap(gui_graphics + '/like.png'))
         self.btn_accept.Bind(wx.EVT_BUTTON, self.btn_accept_press)
+        self.btn_accept.ToolTip = wx.ToolTip("Good cat! start finding faces")
 
-        self.btn_clear_btdt = wx.Button(self.panel, id=-1, pos=(385, 75), size=(35, 35))
+        self.btn_clear_btdt = wx.Button(self.panel, id=-1, pos=(390, 75), size=(35, 35))
         self.btn_clear_btdt.SetBitmap(wx.Bitmap(gui_graphics + '/clear.png'))
         self.btn_clear_btdt.Bind(wx.EVT_BUTTON, self.btn_clr_btdt)
+        self.btn_clear_btdt.ToolTip = wx.ToolTip("Clears the btdt list")
+
+        self.btn_back = wx.Button(self.panel, id=-1, pos=(390, 30), size=(35, 35))
+        self.btn_back.name = "back"
+        self.btn_back.SetBitmap(wx.Bitmap(gui_graphics + '/back.png'))
+        self.btn_back.Bind(wx.EVT_BUTTON, self.btn_review)
+        self.btn_back.ToolTip = wx.ToolTip(f"Move back through {self.image_num} most recent cats")
+
+        self.btn_fwd = wx.Button(self.panel, id=-1, pos=(480, 30), size=(35, 35))
+        self.btn_fwd.name = "fwd"
+        self.btn_fwd.SetBitmap(wx.Bitmap(gui_graphics + '/fwd.png'))
+        self.btn_fwd.Bind(wx.EVT_BUTTON, self.btn_review)
+        self.btn_fwd.ToolTip = wx.ToolTip(f"Move forward through {self.image_num} most recent cats")
+
+        self.btn_auto = wx.ToggleButton(self.panel, id=-1, pos=(390, 120), size=(35, 35))
+        self.btn_auto.SetBitmap(wx.Bitmap(gui_graphics + '/repeat.png'))
+        self.btn_auto.Bind(wx.EVT_TOGGLEBUTTON, self.btn_auto_go)
+        self.btn_auto.ToolTip = wx.ToolTip("Toggles between manual and full auto operation WARNING! full auto will lock the gui until it finds a cat to skin. You can only access the toggle button as the dead cat spins.")
+
+        self.spn_scale = floatspin.FloatSpin(
+            self.panel,
+            id=-1,
+            pos=(430, 125),
+            size=(45, 25),
+            value=1.08,
+            min_val=1.01,
+            max_val=1.4,
+            increment=.01,
+            digits=2
+            )
+        self.spn_scale.Bind(wx.EVT_SPINCTRL, self.spn_scale_OnSpin)
+        self.spn_scale.Bind(wx.EVT_TEXT, self.spn_scale_OnSpin)
+        self.spn_scale.ToolTip = wx.ToolTip("Scale factor for Haar (default 1.08). Min-1.01; Max-1.4. Smaller number finds more faces but is slower")
+
+        self.spn_neig = wx.SpinCtrl(
+            self.panel,
+            id=-1,
+            pos=(480, 125),
+            size=(35, 25),
+            value='5',
+            min=1,
+            max=20
+            )
+        self.spn_neig.Bind(wx.EVT_SPINCTRL, self.spn_neig_OnSpin)
+        self.spn_neig.Bind(wx.EVT_TEXT, self.spn_neig_OnSpin)
+        self.spn_neig.ToolTip = wx.ToolTip("Neighbour factor for Haar (default 5). More is more accurate but slower")
 
         self.cat_sld = wx.Slider(
             self.panel,
@@ -286,25 +342,41 @@ class BottomPanel(wx.Panel):
         self.r = praw.Reddit('bot1')    # Initialises reddit bot to download cat images
         self.btdt = self.get_btdt()     # setting up and loading list of downloaded/rejected images
 
+        self.term_msg(f"You have {self.Cat_count()} raw cats")
+        self.term_msg(f"btdt currently has {len(self.btdt)} entries\n")
+
     # button functions
-    def btn_Go_press(self, event=None):
+    def btn_go_press(self, event=None):
         self.reject_cat = 0
-        self.good_cat = 0
+        #self.good_cat = 0
+        self.auto = 0
         if event:
-            state = event.GetEventObject().GetValue()
-            if state == True:
+            if self.btn_go_toggle:
+                self.btn_go_toggle = 0
                 event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/pause.png'))
-                self.btn_Go.Update()
+                self.btn_go.Update()
                 self.run = 1
             else:
+                self.btn_go_toggle = 1
                 event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
-                self.term_msg("Paused...\nClick 'Go' to continue")
+                self.term_msg("Paused for manual...\nClick 'Go' for Auto")
                 self.run = 0
-                self.btn_Go.Update()
+                self.btn_go.Update()
         else:
             self.run = 0
-            self.btn_Go.SetValue(False)
-            self.btn_Go.SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
+            self.btn_go_toggle = 1
+            self.btn_go.SetBitmap(wx.Bitmap(gui_graphics + '/start.png'))
+            self.btn_go.Update()
+
+        if self.review:
+            self.review = 0
+            image = self.image_store[self.inc]
+            # Store state of auto/manual toggle, enforce 'Auto',
+            # search for cat face, reset toggle on return
+            auto = self.auto
+            self.auto = 1
+            self.find_cats(image)
+            self.auto = auto
 
         while self.run:
             self.get_cats()
@@ -312,18 +384,58 @@ class BottomPanel(wx.Panel):
     def btn_reject_press(self, event):
         self.good_cat = 0
         self.reject_cat = 1
-        #self.btn_Go.SetDefault()
-        self.btn_accept.SetFocus()
 
     def btn_accept_press(self, event):
         self.reject_cat = 0
         self.good_cat = 1
-        #self.btn_Go.SetDefault()
-        self.btn_accept.SetFocus()
 
     def btn_clr_btdt(self, event):
         self.btdt = []
-        print(self.btdt)
+        self.term_msg("btdt:")
+        self.term_msg(f"{self.btdt}\n")
+
+    def btn_review(self, event):
+        pic_num = len(self.image_store)
+        self.review = 1
+        self.good_cat = 1
+        name = event.GetEventObject().name
+        if pic_num == 0:
+            self.term_msg("No cats")
+            return
+        if name == "back":
+            self.inc += 1
+            if self.inc > pic_num:
+                self.inc = 0
+            self.cat_panel.draw(self.image_store[self.inc])
+        else:
+            self.inc -= 1
+            if self.inc < 0:
+                self.inc = pic_num - 1
+            self.cat_panel.draw(self.image_store[self.inc])
+
+    def btn_auto_go(self, event=None):
+        if event:
+            state = event.GetEventObject().GetValue()
+            if state == True:
+                event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/manual.png'))
+                self.term_msg("Automatic operation initiated")
+                self.btn_auto.Update()
+                self.auto = 1
+            else:
+                event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/repeat.png'))
+                self.term_msg("Manual operation initiated")
+                self.auto = 0
+                self.btn_auto.Update()
+        else:
+            self.auto = 0
+            self.btn_auto.SetValue(False)
+            self.btn_go.SetBitmap(wx.Bitmap(gui_graphics + '/repeat.png'))
+
+    def spn_scale_OnSpin(self, event):
+        self.haar_scale = self.spn_scale.GetValue()
+
+    def spn_neig_OnSpin(self, event):
+        self.haar_neig = self.spn_neig.GetValue()
 
     def get_btdt(self):
         try:
@@ -341,21 +453,13 @@ class BottomPanel(wx.Panel):
                 pickle.dump(btdt, f)
             return btdt
 
-    def wait_key(self):
-        input("I want the program to effing well pause:")
-        return
-
-    def show_im(self, f_out=None, image=None):
-        if not f_out:
+    def show_im(self, image):
+        self.cat_panel.draw(image)
+        self.cat_panel.Update()
+        if self.auto:
             pass
         else:
-            cv.imwrite(f_out, image)
-            self.cat_panel.draw(f_out)
-            if f_out == 'tmp_img.png':
-                time.sleep(2)
-            else:
-                time.sleep(.02)
-            self.cat_panel.Update()
+            time.sleep(.02)
         return
 
     def term_msg(self, msg=None):
@@ -383,8 +487,8 @@ class BottomPanel(wx.Panel):
                     return
             self.term_msg("================================================")
             self.term_msg("Check for noses and click Play, or press Enter...")
-            self.btn_Go_press()
-            #self.btn_Go_press()
+            self.btn_go_press()
+            #self.btn_go_press()
         else:
             self.progress.SetValue(0)
             self.progress.Update()
@@ -395,22 +499,32 @@ class BottomPanel(wx.Panel):
                 s_cat = os.path.join(raw_cats, Cat_cnt[i])
                 d_cat = os.path.join(dead_cats, Cat_cnt[i])
                 image = cv.imread(s_cat,0)
-                self.show_im(s_cat, image)
+                self.show_im(image)
                 self.dataBlocks(s_cat)
                 os.rename(s_cat, d_cat)
+            self.term_msg("Generating new cats\n")
+            time.sleep(1)
             for i in range(9):
                 image = generate.img(i)
-                self.show_im('tmp_img.png', image)
+                self.show_im(image)
+                self.term_msg(f"Generating {i} pixel cat\n")
+                time.sleep(1)
             av_im, post_im = generate.av_img()
-            image = cv.imread(av_im, 0)
-            self.show_im(av_im, image)
-            time.sleep(.5)
-            image = cv.imread(post_im, 0)
-            self.show_im(post_im, image)
+            #image = cv.imread(av_im, 0)
+            self.show_im(av_im)
+            self.term_msg("Generating average cat\n")
+            time.sleep(1)
+            #image = cv.imread(post_im, 0)
+            self.show_im(post_im)
+            self.term_msg("Generating posterised average cat\n")
+            time.sleep(1)
             image = generate.max_rndm_img()
-            self.show_im('tmp_img.png', image)
+            self.show_im(image)
+            self.term_msg("Generating weighted random cat\n")
             os.remove('tmp_img.png')
-            self.btn_Go_press()
+            time.sleep(3)
+            self.show_im(av_im)
+            self.btn_go_press()
 
     def spider(self):
         for submission in self.r.subreddit('cats').new(limit=None):
@@ -423,48 +537,59 @@ class BottomPanel(wx.Panel):
                 self.btdt.append(user)
                 with open('btdt.pkl', 'wb') as f:
                     pickle.dump(self.btdt, f)
-                self.term_msg(str(self.btdt))
+                self.term_msg(f"btdt currently has {len(self.btdt)} entries")
                 # Download image
                 self.term_msg("Downloading")
-                im = urllib.request.urlopen(href)
-                image = np.asarray(bytearray(im.read()), dtype="uint8")
-                image = cv.imdecode(image, cv.IMREAD_COLOR)
-                cv.imwrite(img_pth, image)
-                self.find_cats(img_pth)
+                with urllib.request.urlopen(href) as im:
+                    image = np.asarray(bytearray(im.read()), dtype="uint8")
+                    image = cv.imdecode(image, cv.IMREAD_COLOR) #IMREAD_COLOR
+                    image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+                    #cv.imwrite(img_pth, image)
+                    if len(self.image_store) < self.image_num:
+                        self.image_store.insert(0, image)
+                    else:
+                        self.image_store.insert(0, image)
+                        self.image_store.pop()
+                self.find_cats(image)
                 pic = self.Cat_count()
+                self.term_msg(f"Currently {pic} raw_cats in captivity\n")
                 if pic > 0:
                     break
         # Remove temp file
 
         return
 
-    ##################    Image processing functions:   #######################
-    ################## takes raw images from spider and ####################### 
-    ##################      finds,  resizes, crops,     #######################
+    ##################    Image processing functions:   #########5##############
+    ################## takes raw images from spider and #########5############## 
+    ##################      finds,  resizes, crops,     #########5##############
     ##################      posterises and saves        #######################
 
-    def find_cats(self, img_pth):     #Takes name of temp file from spider
+    def find_cats(self, image):     #Takes name of temp file from spider
         # Open and view raw downloaded image
-        image = cv.imread(img_pth, cv.COLOR_RGB2BGR)
-        self.show_im(img_pth, image)
-        for _ in range(5000):
-            if self.run:
-                wx.GetApp().Yield()
-                if self.reject_cat:
-                    self.reject_cat = 0 # reset switch for next cat
-                    self.term_msg("Crap cat!")
+        # image = cv.cvtColor(image, cv.COLOR_BGR2RGB)    #COLOR_RGB2BGR
+        self.show_im(image)
+        if self.auto:
+            pass
+        else:
+            for _ in range(500000):
+                if self.run:
+                    wx.GetApp().Yield()
+                    if self.reject_cat:
+                        self.reject_cat = 0 # reset switch for next cat
+                        self.term_msg("Crap cat!")
+                        return
+                    if self.good_cat:
+                        self.term_msg("There be cats!")
+                        break
+                else:
                     return
-            else:
-                return
-        print(f"good_cat = {self.good_cat}")
         # Standardise color, convert to grayscale and normalise...
         # the range 0 - 255 and view each step
-        if image.shape[2]:
-            image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-        self.show_im(img_pth, image)
+        image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+        self.show_im(image)
         cv.equalizeHist(image)
         #image = cv.normalize(image,  normalisedImg, 0, 255, cv.NORM_MINMAX)
-        self.show_im(img_pth, image)
+        self.show_im(image)
         # Make image square with padding and resize
         old_size = image.shape[:2] # old_size is in (height, width) format
 
@@ -478,26 +603,30 @@ class BottomPanel(wx.Panel):
         left, right = delta_w//2, delta_w-(delta_w//2)
 
         color = [0, 0, 0]
-        image = cv.copyMakeBorder(image, top, bottom, left, right, 
+        image = cv.copyMakeBorder(image, top, bottom, left, right,
                                   cv.BORDER_CONSTANT, value=color)
-
         rows, cols = image.shape
-        #faces = cat_face3.detectMultiScale(image, 1.05, 5)
-        #eyes = cat_face2.detectMultiScale(image, 1.035, 5)
-        faces = cat_face1.detectMultiScale(image, 1.04, 3, minSize=(128,128))
+        #faces = cat_face3.detectMultiScale(image, 1.05, 5)5
+        #eyes = cat_face2.detectMultiScale(image, 1.035, 5)5
+        faces = cat_face2.detectMultiScale(image, 1.04, 3, minSize=(128,128))
         detect = len(faces) #+ len(eyes)
         if detect or self.good_cat:
-            self.good_cat = 0   #reset switch for next cat
+            self.good_cat = 0   #reset switch for next cat1
             self.term_panel.term.WriteText("Looking for cats...\n")
-            # Rotate image and finer check for cat faces
-            inc =  72    #sets increment for rotation of image. eg. 72=5°
-            for i in range(0, 360, int(360/inc)):  # rotate at 5 degree increments
+            # Rotate image and finer check for cat faces1
+            inc = 72    #sets increment for rotation of image1. eg. 72=5°
+            for i in range(0, 360, int(360/inc)):  # rotate a1t 5 degree increments
                 # Routine to rotate and display image in search of cats
-                M = cv.getRotationMatrix2D((cols/2,rows/2),i,1)
-                rot_im = cv.warpAffine(image,M,(cols,rows))
-                self.show_im(img_pth, rot_im)
+                M = cv.getRotationMatrix2D((cols/2, rows/2), i, 1)
+                rot_im = cv.warpAffine(image, M, (cols, rows))
+                self.show_im(rot_im)
                 # Check rotated image for cats and crop/save any found
-                faces = cat_face2.detectMultiScale(rot_im, 1.08, 5, minSize=(128,128))
+                faces = cat_face2.detectMultiScale(
+                    rot_im,
+                    self.haar_scale,
+                    self.haar_neig,
+                    minSize=(128,128)
+                    )
                 wx.GetApp().Yield()
                 if self.reject_cat:
                     self.reject_cat = 0 # reset switch for next cat
@@ -511,18 +640,21 @@ class BottomPanel(wx.Panel):
                         # Display and save found image
                         # From this point on program references the raw_cat image
                         # not the temp_img in the current directory
-                        self.pic = self.Cat_count()
-                        img_pth_crppd = os.path.join(raw_cats,f'{self.btdt[-1]}_{self.pic}.png')
-                        self.show_im(img_pth_crppd, crop_img)
-                        self.Skin_cats(img_pth_crppd)
-                        self.term_msg(f"Slashed cat no. {self.pic}\n")
+                        pic = self.Cat_count()
+                        img_pth_crppd = os.path.join(raw_cats,f'{self.btdt[-1]}_{pic}.png')
+                        #cv.imwrite(img_pth_crppd, image)
+                        self.show_im(crop_img)
+                        crop_img = self.Skin_cats(crop_img)
+                        cv.imwrite(img_pth_crppd, crop_img)
+                        pic = self.Cat_count()
+                        self.term_msg(f"Slashed cat no. {pic}\n")
 
         else:
             self.term_msg("No cats!")
         self.term_msg("___________________________________________")
         return
 
-    def Skin_cats(self, f_out):
+    def Skin_cats(self, crop_img):
         self.term_msg("Skinning cats...")
         # Open original downloaded image, get dimensions (numpy returns h,w)
         def resize_image(im):
@@ -565,44 +697,44 @@ class BottomPanel(wx.Panel):
             return cv.LUT(image, table)
 
         # Get image, convert, resize, posterise
-        image = cv.imread(f_out,0)
+        #image = cv.imread(f_out,0)
         # Resize image to img_x, img_y dimens
-        image = resize_image(image)
+        crop_img = resize_image(crop_img)
         # Normalise the intensity range from 0 to 255
-        cv.equalizeHist(image)
-        self.show_im(f_out, image)
+        cv.equalizeHist(crop_img)
+        self.show_im(crop_img)
         self.term_msg("Checking need to flip")
         left, right = [], []
         for y in range (img_y):
             for x in range (0, -(-img_x//2)):
-                left.append(image.item(y,x))
+                left.append(crop_img.item(y,x))
         for y in range (img_y):
             for x in range (img_x//2, img_x):
-                right.append(image.item(y,x))
+                right.append(crop_img.item(y,x))
         DOI_L = round(round(sum(left)/len(left)/32)*32)
         DOI_R = round(round(sum(right)/len(right)/32)*32)
         self.term_msg(str(DOI_L)+" "+str(DOI_R))
 
         if DOI_L > DOI_R:
-            image = cv.flip(image, 1)
-            self.show_im(f_out, image)
+            crop_img = cv.flip(crop_img, 1)
+            self.show_im(crop_img)
             self.term_msg("Flipped")
         else:
             self.term_msg("OK")
-            cv.imwrite(f_out, image)
+            #cv.imwrite(f_out, image)
         # Check for need to invert
         self.term_msg("checking need to lighten image")
         # Posterise image to 9 gray intensities from black to white
-        image, av = posterise(image)
+        crop_img, av = posterise(crop_img)
         av = sum(av)/len(av)
         if av < 64:
-            image = adjust_gamma(image, gamma=2.0)
+            crop_img = adjust_gamma(crop_img, gamma=2.0)
             self.term_msg("Lightening")
-            self.show_im(f_out, image)
+            self.show_im(crop_img)
         else:
             self.term_msg("OK")
-            self.show_im(f_out, image)
-        return
+            self.show_im(crop_img)
+        return crop_img
 
     def Cat_count(self):
         pic_num = len([f for f in os.listdir(raw_cats) if os.path.isfile(
