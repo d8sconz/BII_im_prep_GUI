@@ -1,8 +1,9 @@
 Cats/**
 .vscode/**
 __pycache__/**
-untitled.py
+Untitled.py
 ResizeUtils.py
+WxUtils.py
 PyInstallerUtils.py
 praw.ini
 InteractiveRecognizer.py
