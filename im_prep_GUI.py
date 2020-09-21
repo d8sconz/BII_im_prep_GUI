@@ -46,10 +46,6 @@ except:
 
 import generate
 
-#new line for commit
-
-
-
 # ------------------file variables-------------------
 # Base path
 pth = os.path.dirname(os.path.abspath('__file__'))
