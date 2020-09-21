@@ -1,0 +1,11 @@
+Cats/**
+.vscode/**
+__pycache__/**
+Untitled.py
+ResizeUtils.py
+WxUtils.py
+PyInstallerUtils.py
+praw.ini
+InteractiveRecognizer.py
+im_prep_GUI_alpha.py
+BinasciiUtils.py
