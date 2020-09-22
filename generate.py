@@ -10,12 +10,8 @@ from pathlib import Path
 
 Cats = os.getcwd() + '/Cats'
 new_cats = Cats + '/new_cats'
-
-f = open('test_data.pkl', 'rb')
-cnt_list = pickle.load(f)
-f.close()
-
-n = [0, 32, 64, 96, 128, 160, 192, 224, 255]
+cnt_lst = []
+n = [0, 28, 57, 85, 113, 142, 170, 198, 227, 255]
 img_x, img_y = 64,64            # divisible x 3
 #MainIm = np.zeros((img_x, img_y), np.uint8)
 
@@ -34,12 +30,7 @@ def save_img(nm, im):
         os.mkdir(p.parent)
     img = f"{p} {dt.now():%d-%m-%Y %H:%M}.png"
     cv.imwrite(img, im)
-    return
-
-def pix_val(x,y,num):
-    pixdata = Counter(cnt_list[x+img_x*y])
-    pix = pixdata.most_common(9)
-    return pix[num][0]
+    return img
 
 def av_img():
     av_cat = np.zeros((img_x, img_y), np.uint8)
@@ -57,7 +48,7 @@ def av_img():
     cv.imwrite('tmp_img.png', av_cat)
     nm = 'Normalised average cat'
     #show_img(nm)
-    save_img(f"av_cat/new_cat_av", av_cat)
+    av_cat_f = save_img("av_cat/new_cat_av", av_cat)
 
     post_cat = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
@@ -69,10 +60,11 @@ def av_img():
     cv.imwrite('tmp_img.png', post_cat)
     nm = 'Normalised average cat, posterised'
     #show_img(nm)
-    save_img(f"av_cat_post/new_cat_av_post", post_cat)
-    return av_cat, post_cat
+    post_cat_f = save_img("av_cat_post/new_cat_av_post", post_cat)
+    return av_cat_f, post_cat_f
 
-def max_rndm_img():      #Image composed of most common (random) pixel val
+def max_rndm_img():      
+    #Image composed of most common (random) pixel val
     MainIm = np.zeros((img_x, img_y), np.uint8)
     pix = []
     for y in range(img_y):
@@ -87,13 +79,22 @@ def max_rndm_img():      #Image composed of most common (random) pixel val
             MainIm.itemset((y, x), rndm)
     cv.imwrite('tmp_img.png', MainIm)
     nm = 'Weighted random max cat'
-    #show_img(nm)
-    img = os.path.join(
-        new_cats, f"av_cat_max_rndm/new_cat_max {dt.now():%d-%m-%Y %H:%M}.png")
-    cv.imwrite(img, MainIm)
-    return MainIm
+    img = save_img("av_cat_max_rndm/new_cat_max", MainIm)
+    return img
+
+def pix_val(x,y,num):
+    try:
+        pixdata = Counter(cnt_list[x+img_x*y])
+        pix = pixdata.most_common(9)
+        p_val =  pix[num][0]
+    except:
+        p_val = 0
+    return p_val
 
 def img(i):      #Images composed of all pixel values
+    global cnt_list
+    with open('test_data.pkl', 'rb') as f:
+        cnt_list = pickle.load(f)
     MainIm = np.zeros((img_x, img_y), np.uint8)
     for y in range(img_y):
         for x in range(img_x):
@@ -102,7 +103,7 @@ def img(i):      #Images composed of all pixel values
     nm = f"img_{i}"
     #show_img(nm)
     im = save_img(f"{nm}/{nm}", MainIm)
-    return MainIm
+    return im
 
 def main():
     for i in range(9):
