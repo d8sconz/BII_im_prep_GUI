@@ -725,16 +725,21 @@ class explorer_panel(wx.Panel):
         wx.Panel.__init__(self, parent)
 
         topSplitter = wx.SplitterWindow(self)
-        vSplitter = wx.SplitterWindow(topSplitter)
+        vSplitter_top = wx.SplitterWindow(topSplitter)
+        vSplitter_btm = wx.SplitterWindow(topSplitter)
 
-        image_panel = TopLeft_explorer(vSplitter)
-        terminal_panel = TopRight(vSplitter)
-        #terminal_panel.SetBackgroundColour(wx.BLACK)
-        vSplitter.SplitVertically(image_panel, terminal_panel)
-        vSplitter.SetSashGravity(0.5)
+        image_out = TopRight_explorer(vSplitter_top)
+        terminal_panel = TopRight(vSplitter_btm)
+        image_main = TopLeft_explorer(vSplitter_top, terminal_panel, image_out)
+        Button_panel = Btm_explorer_Panel(vSplitter_btm, image_main, terminal_panel)
 
-        panelThree = Btm_explorer_Panel(topSplitter, image_panel, terminal_panel)
-        topSplitter.SplitHorizontally(vSplitter, panelThree)
+        vSplitter_top.SplitVertically(image_main, image_out)
+        vSplitter_top.SetSashGravity(0.5)
+
+        vSplitter_btm.SplitVertically(terminal_panel, Button_panel)
+        vSplitter_btm.SetSashGravity(0.5)
+        
+        topSplitter.SplitHorizontally(vSplitter_top, vSplitter_btm)
         topSplitter.SetSashGravity(0.5)
 
         topSplitter.SetMinimumPaneSize(min_img_wndw)
@@ -745,8 +750,10 @@ class explorer_panel(wx.Panel):
 
 #----------------class for image editing/exploring on second page------
 class TopLeft_explorer(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, terminal_panel, image_out):
         super(TopLeft_explorer, self).__init__(parent)
+        self.term_panel = terminal_panel
+        self.image_out = image_out
         #load image
         im_pth = new_cats + '/av_cat'
         files = os.listdir(im_pth)
@@ -779,7 +786,7 @@ class TopLeft_explorer(wx.Panel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.EXPAND|wx.ALL, 5)
         self.SetSizer(self.sizer)
-        #self.Fit()
+        self.Fit()
 
         # Connect the mouse events to their relevant callbacks
         self.canvas.mpl_connect('button_press_event', self._onPress)
@@ -826,8 +833,9 @@ class TopLeft_explorer(wx.Panel):
                 self.y1 = event.ydata
 
             # Set the width and height and origin of the bounding rectangle
-            self.boundingRectWidth = self.x1 - self.x0
-            self.boundingRectHeight = self.y1 - self.y0
+            w, h = self.get_square(self.x0, self.x1)
+            self.boundingRectWidth = w
+            self.boundingRectHeight = h
             self.bouningRectOrigin = (self.x0, self.y0)
 
             # Draw the bounding rectangle
@@ -835,7 +843,9 @@ class TopLeft_explorer(wx.Panel):
             self.rect.set_height(self.boundingRectHeight)
             self.rect.set_xy((self.x0, self.y0))
             self.canvas.draw()
-
+            self.term_msg(f"x0 = {int(self.x0)}, x1 = {int(self.x1)} \n")
+            self.term_msg(f"y0 = {int(self.y0)}, y1 = {int(self.y1)} \n")
+            self.term_msg(f"{int(self.boundingRectWidth)}w x {int(self.boundingRectHeight)}h \n")
     def _onMotion(self, event):
         '''Callback to handle the motion event created by the mouse moving over the canvas'''
 
@@ -852,10 +862,78 @@ class TopLeft_explorer(wx.Panel):
                 self.y1 = event.ydata
 
             # Set the width and height and draw the rectangle
-            self.rect.set_width(self.x1 - self.x0)
-            self.rect.set_height(self.y1 - self.y0)
+            w, h = self.get_square(self.x0, self.x1)
+            self.rect.set_width(w)
+            self.rect.set_height(h)
+            
+            #self.rect.set_height(self.y1 - self.y0)
             self.rect.set_xy((self.x0, self.y0))
             self.canvas.draw()
+
+    def get_square(self, x0, x1):
+        w = int(x1 - x0)
+        h =  w
+        if self.y1 < self.y0 and self.x1 > self.x0:
+            h *= -1
+        elif self.y1 > self.y0 and self.x1 < self.x0:
+            h *= -1
+        return w, h
+
+    def setImage(self, pathToImage):
+        '''Sets the background image of the canvas'''
+
+        # Load the image into matplotlib and PIL
+        image = cv.imread(pathToImage) 
+
+        # Save the image's dimensions
+        self.imageSize = image.size
+
+        # Add the image to the figure and redraw the canvas. Also ensure the aspect ratio of the image is retained.
+        self.axes.imshow(image,aspect='equal') 
+        self.canvas.draw()
+        self.Refresh()
+
+    def term_msg(self, msg=None):
+        if not msg:
+            pass
+        else:
+            self.term_panel.term.WriteText(msg+"\n")
+            self.term_panel.term.Update()
+        return
+
+#----------------class for image output on second page------
+class TopRight_explorer(wx.Panel):
+    def __init__(self, parent):
+        super(TopRight_explorer, self).__init__(parent)
+        #load image
+        im_pth = new_cats + '/av_cat'
+        files = os.listdir(im_pth)
+        im_pths =  [os.path.join(im_pth, im_name) for im_name in files]
+        try:
+            img_pth = max(im_pths, key=os.path.getctime)
+        except:
+            img_pth = os.path.join(pth + "/gui_graphics/Abe.png")
+
+        # Intitialise the matplotlib figure
+        self.figure = plt.figure(figsize=(1, 1))
+
+        # Create an axes, turn off the labels and add them to the figure
+        self.axes = plt.Axes(self.figure,[0,0,1,1])      
+        self.axes.set_axis_off() 
+        self.figure.add_axes(self.axes) 
+
+        # Add the figure to the wxFigureCanvas
+        self.canvas = FigureCanvas(self, -1, self.figure)
+
+        # Sizer to contain the canvas
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.canvas, 1, wx.EXPAND|wx.ALL, 5)
+        self.SetSizer(self.sizer)
+        self.Fit()
+
+        # If there is an initial image, display it on the figure
+        if img_pth is not None:
+            self.setImage(img_pth)
 
     def setImage(self, pathToImage):
         '''Sets the background image of the canvas'''
@@ -872,10 +950,11 @@ class TopLeft_explorer(wx.Panel):
         self.Refresh()
 
 class Btm_explorer_Panel(wx.Panel):
-    def __init__(self, parent, image_panel, terminal_panel):
+    def __init__(self, parent, image_main, terminal_panel):
         wx.Panel.__init__(self, parent=parent)
         self.panel = wx.Panel(self, -1, size=(580, 180))
 
+#======================================================================
 class Main(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(

@@ -60,7 +60,7 @@ def rm_dup():
             os.path.join(dead_cats, f))])
     print(f"\nfound {len(md5_dict)} duplicates out of {pic_num} files")
     if input("\nEnter (y)es to confirm operation or anything else to abort: ").lower() not in ("y", "yes"):
-        sys.exit("Operation cancelled by user. Exiting...")
+        sys.exit("\nOperation cancelled by user. Exiting...")
 
     print("Deleting...")
     c=0

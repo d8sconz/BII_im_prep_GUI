@@ -14,7 +14,7 @@ import wx.xrc
 ## Class MyFrame1
 ###########################################################################
 
-img_pth = "Cats/new_cats/av_cat/new_cat_av 07-09-2020 18:49.png"
+img_pth = "Cats/new_cats/av_cat/new_cat_av 16-09-2020 21:50.png"
 min_img_wndw = 295
 class MyFrame1 ( wx.Frame ):
 
