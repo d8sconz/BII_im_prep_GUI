@@ -91,7 +91,7 @@ MainIm = np.zeros((img_x, img_y), np.uint8)
 
 #======================================================================
 #---------------------Front page of notebook---------------------------
-class spider_panel(wx.Panel):
+class Front_page(wx.Panel):
     def __init__(self, parent):
         """Constructor"""
         wx.Panel.__init__(self, parent)
@@ -99,13 +99,13 @@ class spider_panel(wx.Panel):
         topSplitter = wx.SplitterWindow(self)
         vSplitter = wx.SplitterWindow(topSplitter)
 
-        image_panel = TopLeft_spider(vSplitter)
-        terminal_panel = TopRight(vSplitter)
+        image_panel = Download_image(vSplitter)
+        terminal_panel = Terminal(vSplitter)
         #terminal_panel.SetBackgroundColour(wx.BLACK)
         vSplitter.SplitVertically(image_panel, terminal_panel)
         vSplitter.SetSashGravity(0.5)
 
-        panelThree = BottomPanel(topSplitter, image_panel, terminal_panel)
+        panelThree = Control_panel(topSplitter, image_panel, terminal_panel)
         topSplitter.SplitHorizontally(vSplitter, panelThree)
         topSplitter.SetSashGravity(0.5)
 
@@ -116,9 +116,9 @@ class spider_panel(wx.Panel):
         self.SetSizer(sizer)
 
 # ---------------class for panel containing image on front page--------
-class TopLeft_spider(wx.Panel):
+class Download_image(wx.Panel):
     def __init__(self, parent):
-        super(TopLeft_spider, self).__init__(parent)
+        super(Download_image, self).__init__(parent)
         img = wx.Image(min_img_wndw, min_img_wndw)
         self.image_ctrl = wx.StaticBitmap(self, bitmap=wx.Bitmap(img))
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -147,9 +147,9 @@ class TopLeft_spider(wx.Panel):
         self.Refresh()
 
 #--------class for panel containing terminal output on front page------
-class TopRight(wx.Panel):
+class Terminal(wx.Panel):
     def __init__(self, parent):
-        super(TopRight, self).__init__(parent)
+        super(Terminal, self).__init__(parent)
         self.term = wx.TextCtrl(self,
                                 size=(200, 100),
                                 style=wx.TE_MULTILINE|wx.TE_READONLY|wx.TE_RICH
@@ -162,7 +162,7 @@ class TopRight(wx.Panel):
         self.term.Update()
 
 #------------------Panel for all controls on front page----------------
-class BottomPanel(wx.Panel):
+class Control_panel(wx.Panel):
     def __init__(self, parent, image_panel, terminal_panel):
         wx.Panel.__init__(self, parent=parent)
         # Panels
@@ -498,7 +498,7 @@ class BottomPanel(wx.Panel):
                         os.remove(self.image_store[-1])
                         print(self.image_store[-1])
                         self.image_store.pop()
-                    print(len(self.image_store), self.image_num, self.image_store[-1])
+
                 self.find_cats(img_pth)
                 pic = self.Cat_count()
                 self.term_msg(f"Currently {pic} raw_cats in captivity\n")
@@ -593,7 +593,7 @@ class BottomPanel(wx.Panel):
                         # From this point on program references the raw_cat image
                         # not the temp_img in the current directory
                         pic = self.Cat_count()
-                        img_pth_crppd = os.path.join(raw_cats,f'{self.btdt[-1]}_{pic}.png')
+                        img_pth_crppd = os.path.join(raw_cats,f'{pic}_{self.btdt[-1]}.png')
                         crop_img = self.Skin_cats(crop_img, img_pth_crppd)
                         cv.imwrite(img_pth_crppd, crop_img)
                         self.show_im(img_pth_crppd)
@@ -729,7 +729,7 @@ class explorer_panel(wx.Panel):
         vSplitter_btm = wx.SplitterWindow(topSplitter)
 
         image_out = TopRight_explorer(vSplitter_top)
-        terminal_panel = TopRight(vSplitter_btm)
+        terminal_panel = Terminal(vSplitter_btm)
         image_main = TopLeft_explorer(vSplitter_top, terminal_panel, image_out)
         Button_panel = Btm_explorer_Panel(vSplitter_btm, image_main, terminal_panel)
 
@@ -799,7 +799,7 @@ class TopLeft_explorer(wx.Panel):
 
         # If there is an initial image, display it on the figure
         if img_pth is not None:
-            self.setImage(img_pth)
+            self.im = self.setImage(img_pth)
 
     def _onPress(self, event):
         ''' Callback to handle the mouse being clicked and held over the canvas'''
@@ -843,9 +843,16 @@ class TopLeft_explorer(wx.Panel):
             self.rect.set_height(self.boundingRectHeight)
             self.rect.set_xy((self.x0, self.y0))
             self.canvas.draw()
-            self.term_msg(f"x0 = {int(self.x0)}, x1 = {int(self.x1)} \n")
-            self.term_msg(f"y0 = {int(self.y0)}, y1 = {int(self.y1)} \n")
+            self.term_msg(f"x0 = {int(self.x0)}, x1 = {int(self.x1)}")
+            self.term_msg(f"y0 = {int(self.y0)}, y1 = {int(self.y1)}")
             self.term_msg(f"{int(self.boundingRectWidth)}w x {int(self.boundingRectHeight)}h \n")
+
+            # cropped image=image[y:y+h,x:x+w]
+            y = int(self.y0)
+            x = int(self.x0)
+            self.im_crop = self.im[y:y + h, x:x + w]
+            self.image_out.setImage(self.im_crop)
+ 
     def _onMotion(self, event):
         '''Callback to handle the motion event created by the mouse moving over the canvas'''
 
@@ -873,9 +880,9 @@ class TopLeft_explorer(wx.Panel):
     def get_square(self, x0, x1):
         w = int(x1 - x0)
         h =  w
-        if self.y1 < self.y0 and self.x1 > self.x0:
+        if self.y1 < self.y0 and x1 > x0:
             h *= -1
-        elif self.y1 > self.y0 and self.x1 < self.x0:
+        elif self.y1 > self.y0 and x1 < x0:
             h *= -1
         return w, h
 
@@ -893,6 +900,8 @@ class TopLeft_explorer(wx.Panel):
         self.canvas.draw()
         self.Refresh()
 
+        return image
+
     def term_msg(self, msg=None):
         if not msg:
             pass
@@ -900,6 +909,14 @@ class TopLeft_explorer(wx.Panel):
             self.term_panel.term.WriteText(msg+"\n")
             self.term_panel.term.Update()
         return
+
+    # Open original downloaded image, get dimensions (numpy returns h,w)
+    def resize_image(im):
+        im = cv2.imread(im)
+        im_resized = cv2.resize(im, (224, 224), interpolation=cv2.INTER_LINEAR)
+
+        plt.imshow(cv2.cvtColor(im_resized, cv2.COLOR_BGR2RGB))
+        plt.show()
 
 #----------------class for image output on second page------
 class TopRight_explorer(wx.Panel):
@@ -935,11 +952,15 @@ class TopRight_explorer(wx.Panel):
         if img_pth is not None:
             self.setImage(img_pth)
 
-    def setImage(self, pathToImage):
+    def setImage(self, img):
         '''Sets the background image of the canvas'''
 
         # Load the image into matplotlib and PIL
-        image = cv.imread(pathToImage) 
+        if isinstance(img, str):
+            image = cv.imread(img)
+        else:
+            image = img
+        
 
         # Save the image's dimensions
         self.imageSize = image.size
@@ -948,6 +969,7 @@ class TopRight_explorer(wx.Panel):
         self.axes.imshow(image,aspect='equal') 
         self.canvas.draw()
         self.Refresh()
+        return image
 
 class Btm_explorer_Panel(wx.Panel):
     def __init__(self, parent, image_main, terminal_panel):
@@ -967,7 +989,7 @@ class Main(wx.Frame):
 
         panel = wx.Panel(self)
         notebook = aui.AuiNotebook(panel)
-        spider = spider_panel(notebook)
+        spider = Front_page(notebook)
         explorer = explorer_panel(notebook)
         notebook.AddPage(spider, 'Spider')
         notebook.AddPage(explorer, 'Explorer')
