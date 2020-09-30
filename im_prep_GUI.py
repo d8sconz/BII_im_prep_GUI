@@ -15,7 +15,7 @@ import urllib.request
 # k = pixel value, and v = number of occurences
 from collections import Counter
 #from idlelib import query
-
+import random
 import cv2 as cv
 import matplotlib as mpl
 # Matplotlib chosen for image render because it works.
@@ -88,6 +88,7 @@ im_resize_init = 1280   # Init href = submission.urlial resize dimension of down
 #href = submission.url
 #Ghost of programs past - for href = submission.urluse with wx.staticBitmap if I return to it
 MainIm = np.zeros((img_x, img_y), np.uint8)
+n = [0, 28, 57, 85, 113, 142, 170, 198, 227, 255]
 
 #======================================================================
 #---------------------Front page of notebook---------------------------
@@ -173,6 +174,7 @@ class Control_panel(wx.Panel):
         self.image_store = []        # holds last image_num images for review
         self.image_num = 10          # number of images to hold for review
         self.inc = 0                 # holds index number of image_store for back/fwd buttons
+        self.auto = 0
         self.review = 0
         self.good_cat = 0
         self.haar_scale = 1.08
@@ -278,7 +280,7 @@ class Control_panel(wx.Panel):
     def btn_go_press(self, event=None):
         self.reject_cat = 0
         #self.good_cat = 0
-        self.auto = 0
+        #self.auto = 0
         if event:
             if self.btn_go_toggle:
                 self.btn_go_toggle = 0
@@ -388,7 +390,7 @@ class Control_panel(wx.Panel):
     def show_im(self, image):
         self.cat_panel.draw(image)
         self.cat_panel.Update()
-        if self.auto:
+        if self.auto == 1:
             pass
         else:
             time.sleep(.02)
@@ -496,7 +498,6 @@ class Control_panel(wx.Panel):
                         self.image_store.insert(0, cache_img)
                         # Remove excess images from cache
                         os.remove(self.image_store[-1])
-                        print(self.image_store[-1])
                         self.image_store.pop()
 
                 self.find_cats(img_pth)
@@ -641,7 +642,7 @@ class Control_panel(wx.Panel):
                     px_val = bisect.bisect_left(n, pxl)
                     # Convert to 10 gray values
                     im.itemset((y, x), int(n[px_val]))
-                    av.append(im.item(y,x))
+                    av.append(pxl)
             return im, av
 
         """def adjust_gamma(img_pth, gamma=1.0):
@@ -728,7 +729,7 @@ class explorer_panel(wx.Panel):
         vSplitter_top = wx.SplitterWindow(topSplitter)
         vSplitter_btm = wx.SplitterWindow(topSplitter)
 
-        image_out = TopRight_explorer(vSplitter_top)
+        image_out = Download_image(vSplitter_top)             #TopRight_explorer(vSplitter_top)
         terminal_panel = Terminal(vSplitter_btm)
         image_main = TopLeft_explorer(vSplitter_top, terminal_panel, image_out)
         Button_panel = Btm_explorer_Panel(vSplitter_btm, image_main, terminal_panel)
@@ -755,13 +756,17 @@ class TopLeft_explorer(wx.Panel):
         self.term_panel = terminal_panel
         self.image_out = image_out
         #load image
-        im_pth = new_cats + '/av_cat'
+        if not os.path.exists(new_cats + '/img_0'):
+            os.makedirs(new_cats + '/img_0')
+        im_pth = new_cats + '/img_0'
         files = os.listdir(im_pth)
-        im_pths =  [os.path.join(im_pth, im_name) for im_name in files]
+        im_pths = [os.path.join(im_pth, im_name) for im_name in files]
         try:
-            img_pth = max(im_pths, key=os.path.getctime)
+            img = max(im_pths, key=os.path.getctime)
+            #opening_image = cv.imread(img)
+            opening_image = img
         except:
-            img_pth = os.path.join(pth + "/gui_graphics/Abe.png")
+            opening_image = os.path.join(pth + "/gui_graphics/Abe.png")
 
         # Intitialise the matplotlib figure
         self.figure = plt.figure(figsize=(1, 1))
@@ -798,8 +803,8 @@ class TopLeft_explorer(wx.Panel):
         self.pressed = False
 
         # If there is an initial image, display it on the figure
-        if img_pth is not None:
-            self.im = self.setImage(img_pth)
+        if opening_image is not None:
+            self.setImage(opening_image)
 
     def _onPress(self, event):
         ''' Callback to handle the mouse being clicked and held over the canvas'''
@@ -843,15 +848,20 @@ class TopLeft_explorer(wx.Panel):
             self.rect.set_height(self.boundingRectHeight)
             self.rect.set_xy((self.x0, self.y0))
             self.canvas.draw()
-            self.term_msg(f"x0 = {int(self.x0)}, x1 = {int(self.x1)}")
-            self.term_msg(f"y0 = {int(self.y0)}, y1 = {int(self.y1)}")
-            self.term_msg(f"{int(self.boundingRectWidth)}w x {int(self.boundingRectHeight)}h \n")
+            self.term_msg(f"x0 = {round(self.x0)}, x1 = {round(self.x1)}")
+            self.term_msg(f"y0 = {round(self.y0)}, y1 = {round(self.y1)}")
+            self.term_msg(f"{round(self.boundingRectWidth)}w x {round(self.boundingRectHeight)}h \n")
 
             # cropped image=image[y:y+h,x:x+w]
-            y = int(self.y0)
-            x = int(self.x0)
-            self.im_crop = self.im[y:y + h, x:x + w]
-            self.image_out.setImage(self.im_crop)
+            y = round(self.y0)
+            x = round(self.x0)
+            im_crop = self.im[y:y + h, x:x + w]
+            cv.imwrite(img_pth, im_crop)
+            self.image_out.draw(img_pth)
+            for y in range(h):
+                for x in range(w):
+                    pass
+                    
  
     def _onMotion(self, event):
         '''Callback to handle the motion event created by the mouse moving over the canvas'''
@@ -878,7 +888,7 @@ class TopLeft_explorer(wx.Panel):
             self.canvas.draw()
 
     def get_square(self, x0, x1):
-        w = int(x1 - x0)
+        w = round(x1 - x0)
         h =  w
         if self.y1 < self.y0 and x1 > x0:
             h *= -1
@@ -888,19 +898,14 @@ class TopLeft_explorer(wx.Panel):
 
     def setImage(self, pathToImage):
         '''Sets the background image of the canvas'''
-
+        self.image_out.draw(pathToImage)
         # Load the image into matplotlib and PIL
-        image = cv.imread(pathToImage) 
-
-        # Save the image's dimensions
-        self.imageSize = image.size
-
+        self.im = cv.imread(pathToImage, cv.IMREAD_GRAYSCALE)
+    
         # Add the image to the figure and redraw the canvas. Also ensure the aspect ratio of the image is retained.
-        self.axes.imshow(image,aspect='equal') 
+        self.axes.imshow(self.im, cmap='gray') 
         self.canvas.draw()
         self.Refresh()
-
-        return image
 
     def term_msg(self, msg=None):
         if not msg:
@@ -918,7 +923,8 @@ class TopLeft_explorer(wx.Panel):
         plt.imshow(cv2.cvtColor(im_resized, cv2.COLOR_BGR2RGB))
         plt.show()
 
-#----------------class for image output on second page------
+"""#----------------class for image output on second page------
+   #---------------Superseded by using Download Image class------
 class TopRight_explorer(wx.Panel):
     def __init__(self, parent):
         super(TopRight_explorer, self).__init__(parent)
@@ -956,25 +962,49 @@ class TopRight_explorer(wx.Panel):
         '''Sets the background image of the canvas'''
 
         # Load the image into matplotlib and PIL
-        if isinstance(img, str):
-            image = cv.imread(img)
-        else:
-            image = img
-        
-
-        # Save the image's dimensions
-        self.imageSize = image.size
-
+        image = cv.imread(img, cv.IMREAD_GRAYSCALE)
         # Add the image to the figure and redraw the canvas. Also ensure the aspect ratio of the image is retained.
-        self.axes.imshow(image,aspect='equal') 
+        self.axes.imshow(image, cmap='gray') 
         self.canvas.draw()
-        self.Refresh()
-        return image
+        self.Refresh()"""
 
 class Btm_explorer_Panel(wx.Panel):
     def __init__(self, parent, image_main, terminal_panel):
         wx.Panel.__init__(self, parent=parent)
         self.panel = wx.Panel(self, -1, size=(580, 180))
+        self.image = image_main
+        self.terminal_panel = terminal_panel
+
+        self.btn_file = wx.Button(self.panel, id=-1, pos=(98, 30), size=(45, 35))
+        self.btn_file.SetBitmap(wx.Bitmap(gui_graphics + '/fileOpen.png'))
+        self.btn_file.Bind(wx.EVT_BUTTON, self.btn_file_get)
+        self.btn_file.ToolTip = wx.ToolTip("Open image file")
+
+        self.btn_rndm = wx.Button(self.panel, id=-1, pos=(158, 30), size=(45, 35))
+        self.btn_rndm.SetBitmap(wx.Bitmap(gui_graphics + '/randIm.png'))
+        self.btn_rndm.Bind(wx.EVT_BUTTON, self.btn_rndm_get)
+        self.btn_rndm.ToolTip = wx.ToolTip("Generate random image")
+
+    def btn_file_get(self, event):
+        # otherwise ask the user what new file to open
+        with wx.FileDialog(self, "Open image file", wildcard="Image files (*.png)|*.png",
+                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+
+            # Proceed loading the file chosen by the user
+            pathname = fileDialog.GetPath()
+            self.image.setImage(pathname)
+
+    def btn_rndm_get(self, event):
+        rndm = MainIm
+        for y in range(img_y):
+            for x in range(img_x):
+                rndm.itemset((y, x), random.choice(n))
+        cv.imwrite(img_pth, rndm)
+        self.image.setImage(img_pth)
+        
 
 #======================================================================
 class Main(wx.Frame):
