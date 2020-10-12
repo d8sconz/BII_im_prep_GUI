@@ -856,6 +856,14 @@ class TopLeft_explorer(wx.Panel):
             y = round(self.y0)
             x = round(self.x0)
             im_crop = self.im[y:y + h, x:x + w]
+            #get pixel values in range 0 -9
+            pix_var = [n.index(j) for i in im_crop for j in i]
+            datum = int(len(pix_var)/2)
+            cnt = 0
+            for i in range(len(pix_var)):
+                cnt += abs(pix_var[datum] - pix_var[i])
+            av_var = cnt/(len(pix_var)-1)
+            print(f"{pix_var} \n {len(pix_var)}, {av_var}, {cnt}")
             cv.imwrite(img_pth, im_crop)
             self.image_out.draw(img_pth)
             for y in range(h):
@@ -974,6 +982,7 @@ class Btm_explorer_Panel(wx.Panel):
         self.panel = wx.Panel(self, -1, size=(580, 180))
         self.image = image_main
         self.terminal_panel = terminal_panel
+        self.conv = 0
 
         self.btn_file = wx.Button(self.panel, id=-1, pos=(98, 30), size=(45, 35))
         self.btn_file.SetBitmap(wx.Bitmap(gui_graphics + '/fileOpen.png'))
@@ -984,6 +993,24 @@ class Btm_explorer_Panel(wx.Panel):
         self.btn_rndm.SetBitmap(wx.Bitmap(gui_graphics + '/randIm.png'))
         self.btn_rndm.Bind(wx.EVT_BUTTON, self.btn_rndm_get)
         self.btn_rndm.ToolTip = wx.ToolTip("Generate random image")
+
+        self.btn_conv = wx.ToggleButton(self.panel, id=-1, pos=(98, 75), size=(45, 35))
+        self.btn_conv.SetBitmap(wx.Bitmap(gui_graphics + '/conv.png'))
+        self.btn_conv.Bind(wx.EVT_TOGGLEBUTTON, self.btn_conv_get)
+        self.btn_conv.ToolTip = wx.ToolTip("Use set size convolution window")
+
+        self.spn_conv = wx.SpinCtrl(self.panel,
+                                    id=-1,
+                                    pos=(158, 75),
+                                    size=(45, 25),
+                                    value='3',
+                                    min=1,
+                                    max=32
+                                    )       #size=(55, 35),
+        self.spn_conv.Bind(wx.EVT_SPINCTRL, self.spn_conv_onspin)
+        self.spn_conv.Bind(wx.EVT_TEXT, self.spn_conv_onspin)
+        self.spn_conv.ToolTip = wx.ToolTip("Choose size of convolution window")
+
 
     def btn_file_get(self, event):
         # otherwise ask the user what new file to open
@@ -1005,6 +1032,81 @@ class Btm_explorer_Panel(wx.Panel):
         cv.imwrite(img_pth, rndm)
         self.image.setImage(img_pth)
         
+    def spn_conv_onspin(self, event):
+        """conv_size = self.spn_conv.GetValue()
+
+        #change rectangle on explorer panel to chosen size-
+        x = y = 0
+        w = h = conv_size
+        self.image.x0 = 0
+        self.image.y0 = 0
+        dimy, dimx = self.image.im.shape[:2]
+        for i in range(dimy-h):
+            for j in range(dimx-w):
+                self.image.boundingRectWidth = w
+                self.image.boundingRectHeight = h
+                self.image.bouningRectOrigin = (j, i)
+
+                # Draw the bounding rectangle
+                self.image.rect.set_width(self.image.boundingRectWidth)
+                self.image.rect.set_height(self.image.boundingRectHeight)
+                self.image.rect.set_xy((j, i))
+                self.image.canvas.draw()
+
+                im_crop = self.image.im[i:i + h, j:j + w]
+                cv.imwrite(img_pth, im_crop)
+                self.image.image_out.draw(img_pth)
+                self.image.image_out.Refresh()
+                wx.GetApp().Yield()
+        self.image.term_msg(f"{w}x{h} conv chosen")"""
+        
+
+    def btn_conv_get(self, event):
+        if event:
+            state = event.GetEventObject().GetValue()
+            if state == True:
+                event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/pause.png'))
+                self.image.term_msg("Convolution runnning")
+                self.btn_conv.Update()
+                self.conv = 1
+            else:
+                event.GetEventObject().SetBitmap(wx.Bitmap(gui_graphics + '/conv.png'))
+                self.image.term_msg("Convolution paused")
+                self.conv = 0
+                self.btn_conv.Update()
+        else:
+            self.conv = 0
+            self.btn_conv.SetValue(False)
+            self.btn_conv.SetBitmap(wx.Bitmap(gui_graphics + '/conv.png'))
+        conv_size = self.spn_conv.GetValue()
+        #change rectangle on explorer panel to chosen size-
+        x = y = 0
+        w = h = conv_size
+        self.image.x0 = 0
+        self.image.y0 = 0
+        dimy, dimx = self.image.im.shape[:2]
+        for i in range(dimy-h):
+            for j in range(dimx-w):
+                self.image.boundingRectWidth = w
+                self.image.boundingRectHeight = h
+                self.image.bouningRectOrigin = (j, i)
+
+                # Draw the bounding rectangle
+                self.image.rect.set_width(self.image.boundingRectWidth)
+                self.image.rect.set_height(self.image.boundingRectHeight)
+                self.image.rect.set_xy((j, i))
+                self.image.canvas.draw()
+
+                im_crop = self.image.im[i:i + h, j:j + w]
+                cv.imwrite(img_pth, im_crop)
+                self.image.image_out.draw(img_pth)
+                self.image.image_out.Refresh()
+                wx.GetApp().Yield()
+                if self.conv == 0:
+                    break
+            if self.conv == 0:
+                break
+        self.image.term_msg(f"{w}x{h} conv chosen")
 
 #======================================================================
 class Main(wx.Frame):
