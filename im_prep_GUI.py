@@ -83,6 +83,7 @@ cat_face3 = cv.CascadeClassifier(cascades3)
 # Processed image dimensionshref = submission.url
 min_img_wndw = 295      # min href = submission.urlsize of top panels
 img_y, img_x = 64, 64   # raw href = submission.urlcat size
+dim = (img_y, img_x)
 im_resize_init = 1280   # Init href = submission.urlial resize dimension of downloaded images
 
 #href = submission.url
@@ -174,6 +175,7 @@ class Control_panel(wx.Panel):
         self.image_store = []        # holds last image_num images for review
         self.image_num = 10          # number of images to hold for review
         self.inc = 0                 # holds index number of image_store for back/fwd buttons
+        self.current_pic = 0         # holds index number of current review pic for "Go" button
         self.auto = 0
         self.review = 0
         self.good_cat = 0
@@ -301,7 +303,7 @@ class Control_panel(wx.Panel):
 
         if self.review:
             self.review = 0
-            image = self.image_store[self.inc]
+            image = self.image_store[self.current_pic]
             # Store state of auto/manual toggle, enforce 'Auto',
             # search for cat face, reset toggle on return
             auto = self.auto
@@ -334,15 +336,17 @@ class Control_panel(wx.Panel):
             self.term_msg("No cats")
             return
         if name == "back":
-            if self.inc > pic_num:
+            if self.inc >= pic_num:
                 self.inc = 0
             self.cat_panel.draw(self.image_store[self.inc])
+            self.current_pic = self.inc
             self.inc += 1
         else:
-            self.inc -= 1
             if self.inc < 0:
                 self.inc = pic_num - 1
             self.cat_panel.draw(self.image_store[self.inc])
+            self.current_pic = self.inc
+            self.inc -= 1
 
     def btn_auto_go(self, event=None):
         if event:
@@ -493,10 +497,9 @@ class Control_panel(wx.Panel):
                     cv.imwrite(cache_img, image)
                     if len(self.image_store) < self.image_num:
                         self.image_store.insert(0, cache_img)
-                        #self.image_store.insert(0, image)
                     else:
                         self.image_store.insert(0, cache_img)
-                        # Remove excess images from cache
+                        # Remove excess image from cache
                         os.remove(self.image_store[-1])
                         self.image_store.pop()
 
@@ -593,7 +596,15 @@ class Control_panel(wx.Panel):
                         # Display and save found image
                         # From this point on program references the raw_cat image
                         # not the temp_img in the current directory
-                        pic = self.Cat_count()
+                        # Need to calculate number for file to save at end of directory
+                        try:
+                            Cat_list = [f for f in os.listdir(
+                                    raw_cats) if os.path.isfile(os.path.join(raw_cats, f))]
+                            Cat_list = [int(i.split('_')[0]) for i in Cat_list]
+                            Cat_list.sort(key = int)
+                            pic = Cat_list[-1] + 1
+                        except:
+                            pic = 1
                         img_pth_crppd = os.path.join(raw_cats,f'{pic}_{self.btdt[-1]}.png')
                         crop_img = self.Skin_cats(crop_img, img_pth_crppd)
                         cv.imwrite(img_pth_crppd, crop_img)
@@ -697,7 +708,8 @@ class Control_panel(wx.Panel):
             pic_num = len([f for f in os.listdir(raw_cats) if os.path.isfile(
                 os.path.join(raw_cats, f))])
         except:
-            pic_num = 0
+            pic_num = 1
+        
         return pic_num
 
     def dataBlocks(self, s_cat):
@@ -774,7 +786,7 @@ class TopLeft_explorer(wx.Panel):
         # Create an axes, turn off the labels and add them to the figure
         self.axes = plt.Axes(self.figure,[0,0,1,1])      
         self.axes.set_axis_off() 
-        self.figure.add_axes(self.axes) 
+        self.figure.add_axes(self.axes)  
 
         # Add the figure to the wxFigureCanvas
         self.canvas = FigureCanvas(self, -1, self.figure)
@@ -870,7 +882,6 @@ class TopLeft_explorer(wx.Panel):
                 for x in range(w):
                     pass
                     
- 
     def _onMotion(self, event):
         '''Callback to handle the motion event created by the mouse moving over the canvas'''
 
@@ -983,25 +994,48 @@ class Btm_explorer_Panel(wx.Panel):
         self.image = image_main
         self.terminal_panel = terminal_panel
         self.conv = 0
+        self.image_store = []
+        self.image_num = 10
+        self.inc = 0
+        self.current_pic = 0
 
-        self.btn_file = wx.Button(self.panel, id=-1, pos=(98, 30), size=(45, 35))
+        # Seed image_store with standard opening image (latest img_0)
+        im_pth = new_cats + '/img_0'
+        files = os.listdir(im_pth)
+        im_pths = [os.path.join(im_pth, im_name) for im_name in files]
+        img = max(im_pths, key=os.path.getctime)
+        self.image_store.insert(0, img)
+        
+        self.btn_back = wx.Button(self.panel, id=-1, pos=(38, 10), size=(45, 35))
+        self.btn_back.name = "back"
+        self.btn_back.SetBitmap(wx.Bitmap(gui_graphics + '/back.png'))
+        self.btn_back.Bind(wx.EVT_BUTTON, self.btn_review)
+        self.btn_back.ToolTip = wx.ToolTip(f"Move back through {self.image_num} most recent images")
+
+        self.btn_file = wx.Button(self.panel, id=-1, pos=(98, 10), size=(45, 35))
         self.btn_file.SetBitmap(wx.Bitmap(gui_graphics + '/fileOpen.png'))
         self.btn_file.Bind(wx.EVT_BUTTON, self.btn_file_get)
         self.btn_file.ToolTip = wx.ToolTip("Open image file")
 
-        self.btn_rndm = wx.Button(self.panel, id=-1, pos=(158, 30), size=(45, 35))
+        self.btn_rndm = wx.Button(self.panel, id=-1, pos=(158, 10), size=(45, 35))
         self.btn_rndm.SetBitmap(wx.Bitmap(gui_graphics + '/randIm.png'))
         self.btn_rndm.Bind(wx.EVT_BUTTON, self.btn_rndm_get)
         self.btn_rndm.ToolTip = wx.ToolTip("Generate random image")
 
-        self.btn_conv = wx.ToggleButton(self.panel, id=-1, pos=(98, 75), size=(45, 35))
+        self.btn_fwd = wx.Button(self.panel, id=-1, pos=(218, 10), size=(45, 35))
+        self.btn_fwd.name = "fwd"
+        self.btn_fwd.SetBitmap(wx.Bitmap(gui_graphics + '/fwd.png'))
+        self.btn_fwd.Bind(wx.EVT_BUTTON, self.btn_review)
+        self.btn_fwd.ToolTip = wx.ToolTip(f"Move forward through {self.image_num} most recent images")
+
+        self.btn_conv = wx.ToggleButton(self.panel, id=-1, pos=(98, 55), size=(45, 35))
         self.btn_conv.SetBitmap(wx.Bitmap(gui_graphics + '/conv.png'))
         self.btn_conv.Bind(wx.EVT_TOGGLEBUTTON, self.btn_conv_get)
         self.btn_conv.ToolTip = wx.ToolTip("Use set size convolution window")
 
         self.spn_conv = wx.SpinCtrl(self.panel,
                                     id=-1,
-                                    pos=(158, 75),
+                                    pos=(158, 55),
                                     size=(45, 25),
                                     value='3',
                                     min=1,
@@ -1011,6 +1045,25 @@ class Btm_explorer_Panel(wx.Panel):
         self.spn_conv.Bind(wx.EVT_TEXT, self.spn_conv_onspin)
         self.spn_conv.ToolTip = wx.ToolTip("Choose size of convolution window")
 
+
+    def btn_review(self, event):
+        pic_num = len(self.image_store)
+        name = event.GetEventObject().name
+        if pic_num == 0:
+            self.term_msg("No images")
+            return
+        if name == "back":
+            if self.inc >= pic_num:
+                self.inc = 0
+            self.current_pic = self.inc
+            self.inc += 1
+        else:
+            if self.inc < 0:
+                self.inc = pic_num - 1
+            self.current_pic = self.inc
+            self.inc -= 1
+        
+        self.image.setImage(self.image_store[self.current_pic])
 
     def btn_file_get(self, event):
         # otherwise ask the user what new file to open
@@ -1022,6 +1075,7 @@ class Btm_explorer_Panel(wx.Panel):
 
             # Proceed loading the file chosen by the user
             pathname = fileDialog.GetPath()
+            self.add_to_store(pathname)
             self.image.setImage(pathname)
 
     def btn_rndm_get(self, event):
@@ -1029,11 +1083,22 @@ class Btm_explorer_Panel(wx.Panel):
         for y in range(img_y):
             for x in range(img_x):
                 rndm.itemset((y, x), random.choice(n))
-        cv.imwrite(img_pth, rndm)
-        self.image.setImage(img_pth)
+        rnd_img_pth = os.path.join(tmp_img_pth, f"random{dt.now():%d-%m-%Y %H:%M:%S}.png")
+        cv.imwrite(rnd_img_pth, rndm)
+        self.add_to_store(rnd_img_pth)
+        self.image.setImage(rnd_img_pth)
+
+    def add_to_store(self, path):
+        if len(self.image_store) < self.image_num:
+            self.image_store.insert(0, path)
+        else:
+            self.image_store.insert(0, path)
+            # Remove excess image from cache
+            os.remove(self.image_store[-1])
+            self.image_store.pop()
         
     def spn_conv_onspin(self, event):
-        """conv_size = self.spn_conv.GetValue()
+        conv_size = self.spn_conv.GetValue()
 
         #change rectangle on explorer panel to chosen size-
         x = y = 0
@@ -1041,26 +1106,22 @@ class Btm_explorer_Panel(wx.Panel):
         self.image.x0 = 0
         self.image.y0 = 0
         dimy, dimx = self.image.im.shape[:2]
-        for i in range(dimy-h):
-            for j in range(dimx-w):
-                self.image.boundingRectWidth = w
-                self.image.boundingRectHeight = h
-                self.image.bouningRectOrigin = (j, i)
+        self.image.boundingRectWidth = w
+        self.image.boundingRectHeight = h
+        self.image.bouningRectOrigin = (y, x)
 
-                # Draw the bounding rectangle
-                self.image.rect.set_width(self.image.boundingRectWidth)
-                self.image.rect.set_height(self.image.boundingRectHeight)
-                self.image.rect.set_xy((j, i))
-                self.image.canvas.draw()
+        # Draw the bounding rectangle
+        self.image.rect.set_width(self.image.boundingRectWidth)
+        self.image.rect.set_height(self.image.boundingRectHeight)
+        self.image.rect.set_xy((y, x))
+        self.image.canvas.draw()
 
-                im_crop = self.image.im[i:i + h, j:j + w]
-                cv.imwrite(img_pth, im_crop)
-                self.image.image_out.draw(img_pth)
-                self.image.image_out.Refresh()
-                wx.GetApp().Yield()
-        self.image.term_msg(f"{w}x{h} conv chosen")"""
+        im_crop = self.image.im[y:y + h, x:x + w]
+        cv.imwrite(img_pth, im_crop)
+        self.image.image_out.draw(img_pth)
+        self.image.image_out.Refresh()
+        self.image.term_msg(f"{w}x{h} conv chosen")
         
-
     def btn_conv_get(self, event):
         if event:
             state = event.GetEventObject().GetValue()
@@ -1085,28 +1146,49 @@ class Btm_explorer_Panel(wx.Panel):
         self.image.x0 = 0
         self.image.y0 = 0
         dimy, dimx = self.image.im.shape[:2]
-        for i in range(dimy-h):
-            for j in range(dimx-w):
+        for y_range in range(dimy-h):
+            for x_range in range(dimx-w):
                 self.image.boundingRectWidth = w
                 self.image.boundingRectHeight = h
-                self.image.bouningRectOrigin = (j, i)
+                self.image.bouningRectOrigin = (x_range, y_range)
 
                 # Draw the bounding rectangle
                 self.image.rect.set_width(self.image.boundingRectWidth)
                 self.image.rect.set_height(self.image.boundingRectHeight)
-                self.image.rect.set_xy((j, i))
+                self.image.rect.set_xy((x_range, y_range))
                 self.image.canvas.draw()
 
-                im_crop = self.image.im[i:i + h, j:j + w]
+                im_crop = self.image.im[y_range:y_range + h, x_range:x_range + w]
+                # Calculate average variation from datum (central) pixel
+                pix_var = [n.index(j) for i in im_crop for j in i]
+                datum = int(len(pix_var)/2)
+                cnt = 0
+                for i in range(len(pix_var)):
+                    cnt += abs(pix_var[datum] - pix_var[i])
+                av_var = round(cnt/(len(pix_var)-1), 2)
+
+                # Get color of central (datum) pixel
+                pxl = n[len(n)//2]
+                
+                # Scaling the crop to enable text overlay
+                scale = (dimy*10, dimx*10)
+                im_crop = cv.resize(im_crop, scale, interpolation = cv.INTER_NEAREST)
+                cv.putText(
+                    im_crop,
+                    str(av_var),
+                    (280,330),
+                    cv.FONT_HERSHEY_SIMPLEX, 
+                    1,
+                    (255-pxl, 255-pxl, 255-pxl, 255), #font color
+                    5) #font stroke
                 cv.imwrite(img_pth, im_crop)
                 self.image.image_out.draw(img_pth)
-                self.image.image_out.Refresh()
+                #self.image.image_out.Refresh()
                 wx.GetApp().Yield()
                 if self.conv == 0:
                     break
             if self.conv == 0:
                 break
-        self.image.term_msg(f"{w}x{h} conv chosen")
 
 #======================================================================
 class Main(wx.Frame):
@@ -1118,6 +1200,8 @@ class Main(wx.Frame):
             size = (600,550)
             )
         self.SetIcon(wx.Icon(gui_graphics + '/Abe.png'))
+        self.Bind(wx.EVT_CLOSE, self.OnCloseFrame)
+
 
         panel = wx.Panel(self)
         notebook = aui.AuiNotebook(panel)
@@ -1128,6 +1212,23 @@ class Main(wx.Frame):
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(notebook, 1, wx.ALL|wx.EXPAND, 5)
         panel.SetSizer(sizer)
+
+    # Empties temp and destroys the main frame which quits the wxPython application
+    def OnExitApp(self, event):
+        tmp_cats =[f for f in os.listdir(
+                tmp_img_pth) if os.path.isfile(os.path.join(tmp_img_pth, f))]
+        for f in tmp_cats:
+            os.remove(os.path.join(tmp_img_pth, f))
+        self.Destroy()
+
+    def OnCloseFrame(self, event):
+        dialog = wx.MessageDialog(self, message = "Are you sure you want to quit?", caption = "Caption", style = wx.YES_NO, pos = wx.DefaultPosition)
+        response = dialog.ShowModal()
+
+        if (response == wx.ID_YES):
+            self.OnExitApp(event)
+        else:
+            event.StopPropagation()
 
 if __name__ == "__main__":
     app = wx.App()
