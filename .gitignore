@@ -1,6 +1,8 @@
 Cats/**
 .vscode/**
 __pycache__/**
+*.pkl
+*.png
 Untitled.py
 ResizeUtils.py
 WxUtils.py
